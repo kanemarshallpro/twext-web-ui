@@ -24,17 +24,6 @@ let authState: ReturnType<typeof makeAuthState>;
 
 const termsDoc = { version: 2, body: '# Terms', updatedAt: '2026-01-01T00:00:00Z' };
 
-const manifestJson = JSON.stringify(
-  {
-    id: 'demo',
-    name: 'Demo Extension',
-    version: '1.0.0',
-    license: 'Apache-2.0',
-    description: 'A version awaiting review.',
-  },
-  null,
-  2,
-);
 const codeJs = 'class DemoExtension {}\nScratch.extensions.register(new DemoExtension());';
 
 beforeEach(() => {
@@ -123,53 +112,67 @@ describe('AdminPage', () => {
     expect(apiMock.searchExtensions).toHaveBeenCalledWith('physics', { limit: 50 });
   });
 
-  it('opens the source review editor with manifest and code tabs', async () => {
+  it('deletes another account after confirmation', async () => {
+    const confirmMock = vi.mocked(globalThis.confirm);
+    confirmMock.mockReturnValue(true);
+    apiMock.getUsers.mockResolvedValue(
+      paginated([
+        makeUser({ role: 'normal' }),
+        makeUser({ namespace: 'ada', displayName: 'Ada Lovelace', role: 'normal' }),
+      ]),
+    );
+    const user = userEvent.setup();
+    render(<AdminPage onNavigate={noop} />);
+    await user.click(screen.getByRole('button', { name: /User Accounts/ }));
+    await user.click(await screen.findByTitle('Permanently delete @ada'));
+
+    expect(confirmMock).toHaveBeenCalled();
+    expect(apiMock.deleteUser).toHaveBeenCalledWith('ada');
+    expect(
+      await screen.findByText('Account @ada has been permanently deleted.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByTitle('Permanently delete @ada')).not.toBeInTheDocument();
+  });
+
+  it('does not delete an account when confirmation is cancelled', async () => {
+    const confirmMock = vi.mocked(globalThis.confirm);
+    confirmMock.mockReturnValue(false);
+    apiMock.getUsers.mockResolvedValue(
+      paginated([
+        makeUser({ role: 'normal' }),
+        makeUser({ namespace: 'ada', displayName: 'Ada Lovelace', role: 'normal' }),
+      ]),
+    );
+    const user = userEvent.setup();
+    render(<AdminPage onNavigate={noop} />);
+    await user.click(screen.getByRole('button', { name: /User Accounts/ }));
+    await user.click(await screen.findByTitle('Permanently delete @ada'));
+
+    expect(apiMock.deleteUser).not.toHaveBeenCalled();
+    expect(screen.getByTitle('Permanently delete @ada')).toBeInTheDocument();
+  });
+
+  it('opens the source review editor and loads the compiled source', async () => {
     const user = userEvent.setup();
     render(<AdminPage onNavigate={noop} />);
     await screen.findByText('Demo Extension');
     await user.click(screen.getByRole('button', { name: /Inspect/ }));
 
-    expect(
-      await screen.findByRole('heading', { name: 'Demo Extension' }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /manifest.json/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /extension.js/ })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Demo Extension' })).toBeInTheDocument();
 
-    const manifestEditor = await screen.findByRole('textbox', {
-      name: 'manifest.json editor',
-    });
-    expect(manifestEditor).toHaveValue(manifestJson);
-
-    await user.click(screen.getByRole('button', { name: /extension.js/ }));
     const codeEditor = await screen.findByRole('textbox', { name: 'extension.js editor' });
     expect(codeEditor).toHaveValue(codeJs);
     expect(apiMock.downloadVersion).toHaveBeenCalledWith('kane', 'demo', '1.0.0');
   });
 
-  it('flags invalid manifest JSON while reviewing sources', async () => {
-    const user = userEvent.setup();
-    render(<AdminPage onNavigate={noop} />);
-    await screen.findByText('Demo Extension');
-    await user.click(screen.getByRole('button', { name: /Inspect/ }));
-
-    const editor = await screen.findByRole('textbox', { name: 'manifest.json editor' });
-    await user.clear(editor);
-    await user.type(editor, '{{ invalid');
-
-    expect(await screen.findByText(/Unexpected token|Expected property name/)).toBeInTheDocument();
-  });
-
-  it('explains that code is not downloadable while the version is pending', async () => {
+  it('reports when pending source code cannot be loaded', async () => {
     const user = userEvent.setup();
     apiMock.downloadVersion.mockRejectedValue(new ApiError('Not Found', 404));
     render(<AdminPage onNavigate={noop} />);
     await screen.findByText('Demo Extension');
     await user.click(screen.getByRole('button', { name: /Inspect/ }));
-    await user.click(screen.getByRole('button', { name: /extension.js/ }));
 
-    expect(
-      await screen.findByText(/extension.js is not downloadable yet/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/extension.js is not available/i)).toBeInTheDocument();
     expect(screen.queryByText(/Unable to load extension.js/i)).not.toBeInTheDocument();
   });
 });

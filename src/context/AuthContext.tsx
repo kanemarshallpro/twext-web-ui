@@ -19,6 +19,17 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function isSameUser(a: User, b: User): boolean {
+  return (
+    a.namespace === b.namespace &&
+    a.displayName === b.displayName &&
+    a.role === b.role &&
+    a.hasPublished === b.hasPublished &&
+    a.createdAt === b.createdAt &&
+    a.termsAcceptedVersion === b.termsAcceptedVersion
+  );
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(api.getStoredUser());
   const [token, setToken] = useState<string | null>(api.getToken());
@@ -49,11 +60,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Fetch /v0/auth/me every so often and log the user out if their token is invalid or missing
+  // Fetch /v0/auth/me every so often and log the user out if their token is invalid or missing.
+  // Reads the token/user from the api layer (not React state) and bails out of `setUser` when the
+  // payload is unchanged, so the callback stays referentially stable and `getMe` is not re-triggered
+  // in a loop that would make profile pages re-fetch and re-show skeletons on every render.
   const verifyAuth = useCallback(async () => {
     const currentToken = api.getToken();
     if (!currentToken) {
-      if (user || token) {
+      if (api.getStoredUser()) {
         await logout();
       }
       return;
@@ -64,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const freshUser = await api.getMe();
-      setUser(freshUser);
+      setUser((prev) => (prev && isSameUser(prev, freshUser) ? prev : freshUser));
       setToken(currentToken);
     } catch (err: unknown) {
       if (err instanceof ApiError) {
@@ -76,7 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       isCheckingAuthRef.current = false;
     }
-  }, [user, token, logout]);
+  }, [logout]);
 
   const refreshUser = useCallback(async () => {
     await verifyAuth();

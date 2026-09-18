@@ -296,6 +296,30 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     }
   };
 
+  // Handle Delete Account
+  const handleDeleteUser = async (targetUser: User) => {
+    if (
+      !confirm(
+        `DANGER: Are you sure you want to permanently delete @${targetUser.namespace} and all of their extensions, versions, sessions, and tokens? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    clearNotifications();
+    setUpdatingUserNamespace(targetUser.namespace);
+    try {
+      await api.deleteUser(targetUser.namespace);
+      setActionSuccess(`Account @${targetUser.namespace} has been permanently deleted.`);
+      setUsersList((prev) => prev.filter((u) => u.namespace !== targetUser.namespace));
+      fetchStats();
+    } catch (err: unknown) {
+      const msg = err instanceof ApiError ? err.message : 'Failed to delete account';
+      setActionError(msg);
+    } finally {
+      setUpdatingUserNamespace(null);
+    }
+  };
+
   // Handle Save Terms
   const handleSaveTerms = async () => {
     setIsSavingTerms(true);
@@ -622,7 +646,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       <button
                         onClick={() => setSelectedPendingDetail(item)}
                         className="px-2.5 py-1.5 text-xs text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-[3px] font-medium flex items-center gap-1"
-                        title="Inspect manifest & source code"
+                        title="Inspect source code"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>Inspect</span>
@@ -850,6 +874,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                               ? 'Demote to Normal'
                               : 'Promote to Admin'}
                         </button>
+
+                        {!isMe && (
+                          <button
+                            onClick={() => handleDeleteUser(u)}
+                            disabled={isUpdating}
+                            className="p-1.5 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-[3px] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                            title={`Permanently delete @${u.namespace}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );

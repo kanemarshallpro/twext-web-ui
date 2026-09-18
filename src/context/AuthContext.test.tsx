@@ -86,6 +86,16 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('role')).toHaveTextContent('admin');
   });
 
+  it('does not repeatedly refetch /auth/me after hydration', async () => {
+    localStorage.setItem('twexthub_auth_token', 'tok-1');
+    localStorage.setItem('twexthub_auth_user', JSON.stringify(makeUser({ role: 'admin' })));
+    renderProbe();
+    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'));
+    await waitFor(() => expect(apiMock.getMe).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(apiMock.getMe).toHaveBeenCalledTimes(1);
+  });
+
   it('logs out locally when getMe returns 401', async () => {
     localStorage.setItem('twexthub_auth_token', 'tok-expired');
     localStorage.setItem('twexthub_auth_user', JSON.stringify(makeUser()));

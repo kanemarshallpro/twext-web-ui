@@ -67,10 +67,20 @@ describe('SessionsTokensPage', () => {
   });
 
   it('revokes an active session', async () => {
+    apiMock.getSessions.mockResolvedValue(
+      paginated([
+        makeSession({ id: 'sess-1', lastUsedAt: '2026-03-01T00:00:00Z' }),
+        makeSession({ id: 'sess-2', lastUsedAt: '2026-03-02T00:00:00Z' }),
+      ]),
+    );
     const user = userEvent.setup();
     render(<SessionsTokensPage onNavigate={noop} />);
     await screen.findByText('Active Tokens (1)');
-    await user.click(screen.getAllByRole('button', { name: 'Revoke' })[0]);
+    await user.click(
+      screen
+        .getAllByRole('button', { name: 'Revoke' })
+        .filter((button) => !(button as HTMLButtonElement).disabled)[0],
+    );
     expect(apiMock.revokeSession).toHaveBeenCalledWith('sess-1');
     expect(await screen.findByText('Session revoked successfully.')).toBeInTheDocument();
   });
@@ -82,5 +92,26 @@ describe('SessionsTokensPage', () => {
     await user.click(screen.getByRole('button', { name: 'Revoke Token' }));
     expect(apiMock.deleteToken).toHaveBeenCalledWith('tok-1');
     expect(await screen.findByText('Token deleted successfully.')).toBeInTheDocument();
+  });
+
+  it('blocks revoking only the session currently in use (most recently used)', async () => {
+    apiMock.getSessions.mockResolvedValue(
+      paginated([
+        makeSession({ id: 'sess-1', lastUsedAt: '2026-03-01T00:00:00Z' }),
+        makeSession({ id: 'sess-2', lastUsedAt: '2026-03-02T00:00:00Z' }),
+      ]),
+    );
+    const user = userEvent.setup();
+    render(<SessionsTokensPage onNavigate={noop} />);
+    await screen.findByText('Active Tokens (1)');
+
+    expect(screen.getByText('This Device')).toBeInTheDocument();
+    const enabledRevokes = screen
+      .getAllByRole('button', { name: 'Revoke' })
+      .filter((button) => !(button as HTMLButtonElement).disabled);
+    expect(enabledRevokes).toHaveLength(1);
+
+    await user.click(enabledRevokes[0]);
+    expect(apiMock.revokeSession).toHaveBeenCalledWith('sess-1');
   });
 });

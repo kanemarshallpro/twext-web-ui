@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api, ApiError } from '../services/api';
 import { AutomationToken, Session, TokenScope } from '../types/api';
@@ -38,26 +38,24 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  const isSessionThisDevice = (sess: Session) => {
-    const curToken = api.getToken();
-    if (!curToken) return false;
-    if (curToken === sess.id || curToken.startsWith(sess.id) || curToken.includes(sess.id)) {
-      return true;
-    }
-    if (sessions.length === 1) return true;
-    const sorted = [...sessions].sort((a, b) => {
-      const tA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : new Date(a.createdAt).getTime();
-      const tB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : new Date(b.createdAt).getTime();
-      return tB - tA;
-    });
-    return sorted[0]?.id === sess.id;
-  };
+  // The bearer token is an opaque secret unrelated to the `Session.id` (a DB row id),
+  // so the current session can't be identified from the token directly. The current
+  // session is the one that just authenticated this page's own requests, so it is the
+  // most recently used (`lastUsedAt`) of the account's active sessions.
+  const latestSession = useMemo(() => {
+    const score = (s: Session) => {
+      const used = s.lastUsedAt ? new Date(s.lastUsedAt).getTime() : 0;
+      const created = s.createdAt ? new Date(s.createdAt).getTime() : 0;
+      return used || created;
+    };
+    return sessions.reduce<Session | null>(
+      (latest, s) => (latest === null || score(s) >= score(latest) ? s : latest),
+      null,
+    );
+  }, [sessions]);
 
-  const isTokenThisDevice = (tok: AutomationToken) => {
-    const curToken = api.getToken();
-    if (!curToken) return false;
-    return curToken === tok.id || curToken.startsWith(tok.id) || curToken.includes(tok.id);
-  };
+  const isCurrentSession = (sess: Session) =>
+    Boolean(latestSession) && latestSession!.id === sess.id;
 
   const loadSessions = useCallback(async () => {
     setLoadingSessions(true);
@@ -99,7 +97,7 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
 
   const handleRevokeSession = async (sessionId: string) => {
     const targetSession = sessions.find((s) => s.id === sessionId);
-    if (targetSession && isSessionThisDevice(targetSession)) {
+    if (targetSession && isCurrentSession(targetSession)) {
       setActionError(
         'Cannot revoke the session currently being used on this device. Please use Logout to sign out.',
       );
@@ -161,12 +159,6 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
   };
 
   const handleDeleteToken = async (tokenId: string) => {
-    const targetToken = tokens.find((t) => t.id === tokenId);
-    if (targetToken && isTokenThisDevice(targetToken)) {
-      setActionError('Cannot revoke or delete the token currently in use on this device.');
-      return;
-    }
-
     if (
       !confirm(
         'Are you sure you want to delete this token? Any CI scripts using it will lose access immediately.',
@@ -351,7 +343,6 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
             ) : tokens.length > 0 ? (
               <div className="divide-y divide-zinc-200 dark:divide-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-[4px]">
                 {tokens.map((tok) => {
-                  const isCurrent = isTokenThisDevice(tok);
                   return (
                     <div
                       key={tok.id}
@@ -362,12 +353,6 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
                           <span className="font-bold text-zinc-900 dark:text-zinc-100">
                             {tok.name}
                           </span>
-                          {isCurrent && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-[#f6f2fc] dark:bg-[#281e3a] text-[#7b42bc] dark:text-[#be98f7] border border-[#e4d6f7] dark:border-[#432d66] px-1.5 py-0.5 rounded-[3px]">
-                              <Key className="w-3 h-3" />
-                              This Device
-                            </span>
-                          )}
                           <div className="flex items-center gap-1">
                             {tok.scopes?.map((sc) => (
                               <span
@@ -386,22 +371,13 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
                         </div>
                       </div>
 
-                      {isCurrent ? (
-                        <span
-                          title="This token is currently active on this device and cannot be revoked."
-                          className="px-2 py-1 text-[11px] text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700/60 rounded-[3px] cursor-not-allowed opacity-60"
-                        >
-                          In Use
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => handleDeleteToken(tok.id)}
-                          className="p-1.5 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-[3px] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                          title="Revoke Token"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleDeleteToken(tok.id)}
+                        className="p-1.5 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-[3px] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        title="Revoke Token"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   );
                 })}
@@ -436,7 +412,7 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
             ) : sessions.length > 0 ? (
               <div className="divide-y divide-zinc-200 dark:divide-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-[4px] mt-2">
                 {sessions.map((sess) => {
-                  const isCurrent = isSessionThisDevice(sess);
+                  const isCurrent = isCurrentSession(sess);
                   return (
                     <div
                       key={sess.id}
