@@ -7,7 +7,8 @@ interface TermsBannerProps {
 }
 
 export const TermsBanner: React.FC<TermsBannerProps> = ({ onNavigate }) => {
-  const { isAuthenticated, hasAcceptedCurrentTerms, latestTermsVersion, acceptCurrentTerms } = useAuth();
+  const { isAuthenticated, hasAcceptedCurrentTerms, latestTermsVersion, acceptCurrentTerms } =
+    useAuth();
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +34,9 @@ export const TermsBanner: React.FC<TermsBannerProps> = ({ onNavigate }) => {
         <div className="flex items-center gap-2">
           <ShieldAlert className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
           <span>
-            <strong>Action Required:</strong> The Twext Terms of Service (v{latestTermsVersion ?? 1}) have been updated. You must accept the current terms to publish extensions or manage sessions.
+            <strong>Action Required:</strong> The Twext Terms of Service (v{latestTermsVersion ?? 1}
+            ) have been updated. You must accept the current terms to publish extensions or manage
+            sessions.
           </span>
         </div>
 

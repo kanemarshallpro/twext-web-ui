@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api, ApiError } from '../services/api';
 import { Extension } from '../types/api';
@@ -19,7 +19,14 @@ interface DashboardPageProps {
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
-  const { user, isAuthenticated, isLoading, refreshUser, hasAcceptedCurrentTerms, acceptCurrentTerms } = useAuth();
+  const {
+    user,
+    isAuthenticated,
+    isLoading,
+    refreshUser,
+    hasAcceptedCurrentTerms,
+    acceptCurrentTerms,
+  } = useAuth();
   const [userExtensions, setUserExtensions] = useState<Extension[]>([]);
   const [loadingExts, setLoadingExts] = useState(true);
 
@@ -28,21 +35,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [newPassword, setNewPassword] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
-  const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(
+    null,
+  );
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      onNavigate('login');
-      return;
-    }
-
-    if (user) {
-      setDisplayName(user.displayName || '');
-      loadUserExtensions();
-    }
-  }, [isAuthenticated, isLoading, user]);
-
-  const loadUserExtensions = async () => {
+  const loadUserExtensions = useCallback(async () => {
     if (!user) return;
     setLoadingExts(true);
     try {
@@ -56,7 +53,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     } finally {
       setLoadingExts(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      onNavigate('login');
+      return;
+    }
+
+    if (user) {
+      setDisplayName(user.displayName || '');
+      loadUserExtensions();
+    }
+  }, [isAuthenticated, isLoading, user, onNavigate, loadUserExtensions]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +98,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
       setNewPassword('');
       setIsEditingProfile(false);
     } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Failed to update profile';
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Failed to update profile';
       setProfileMsg({ type: 'error', text: msg });
     } finally {
       setSavingProfile(false);
@@ -113,7 +127,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     );
   }
 
-  const publishedCount = userExtensions.filter((e) => e.status !== 'pending' && e.status !== 'yanked').length;
+  const publishedCount = userExtensions.filter(
+    (e) => e.status !== 'pending' && e.status !== 'yanked',
+  ).length;
   const pendingCount = userExtensions.filter((e) => e.status === 'pending').length;
 
   return (
@@ -201,7 +217,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
         {/* Edit Profile Form drawer */}
         {isEditingProfile && (
-          <form onSubmit={handleSaveProfile} className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800 space-y-4">
+          <form
+            onSubmit={handleSaveProfile}
+            className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800 space-y-4"
+          >
             <h3 className="text-xs font-semibold text-zinc-900 dark:text-zinc-200 uppercase tracking-wider">
               Update Account Details
             </h3>
@@ -221,7 +240,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
               <div>
                 <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  New Password <span className="text-zinc-400 font-normal">(leave blank to keep current)</span>
+                  New Password{' '}
+                  <span className="text-zinc-400 font-normal">(leave blank to keep current)</span>
                 </label>
                 <input
                   type="password"
@@ -261,8 +281,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               <Key className="w-5 h-5 text-zinc-700 dark:text-zinc-300" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100">Automation Tokens & Sessions</h4>
-              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Manage CI publish/yank tokens and browser logins</p>
+              <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                Automation Tokens & Sessions
+              </h4>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                Manage CI publish/yank tokens and browser logins
+              </p>
             </div>
           </div>
           <button
@@ -279,8 +303,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               <Package className="w-5 h-5 text-[#7b42bc] dark:text-[#be98f7]" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100">Publish Extension</h4>
-              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Submit a compiled TurboWarp extension via the web registry</p>
+              <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                Publish Extension
+              </h4>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                Submit a compiled TurboWarp extension via the web registry
+              </p>
             </div>
           </div>
           <button
@@ -298,7 +326,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           <div>
             <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">Your Extensions</h2>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Extensions authored under your @{user.namespace} namespace ({publishedCount} published, {pendingCount} pending).
+              Extensions authored under your @{user.namespace} namespace ({publishedCount}{' '}
+              published, {pendingCount} pending).
             </p>
           </div>
           <button
@@ -313,7 +342,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         {loadingExts ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2].map((i) => (
-              <div key={i} className="h-40 bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-[6px] animate-pulse" />
+              <div
+                key={i}
+                className="h-40 bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-[6px] animate-pulse"
+              />
             ))}
           </div>
         ) : userExtensions.length > 0 ? (
@@ -329,9 +361,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         ) : (
           <div className="bg-white dark:bg-[#181822] border border-zinc-200 dark:border-zinc-800 rounded-[6px] p-12 text-center space-y-3 transition-colors">
             <Package className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto" />
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">No extensions under @{user.namespace} yet</h3>
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              No extensions under @{user.namespace} yet
+            </h3>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto">
-              Ready to share your custom TurboWarp blocks? Use the web publish tool or the Twext CLI to submit your compiled code.
+              Ready to share your custom TurboWarp blocks? Use the web publish tool or the Twext CLI
+              to submit your compiled code.
             </p>
             <div className="pt-2">
               <button

@@ -19,7 +19,7 @@ import { PrivacyPage } from './pages/PrivacyPage';
 import { AdminPage } from './pages/AdminPage';
 
 export const App: React.FC = () => {
-  // Hash-based routing provides flawless navigation in static/iframe environments
+  // Hash-based routing keeps deep links working on a static host without server rewrites.
   const getHashRoute = () => {
     const raw = window.location.hash.replace(/^#\/?/, '');
     return raw || 'home';
@@ -50,7 +50,13 @@ export const App: React.FC = () => {
     if (route.startsWith('search')) {
       const qIndex = route.indexOf('?q=');
       const query = qIndex !== -1 ? decodeURIComponent(route.substring(qIndex + 3)) : '';
-      return <ExplorePage key={`${query}-${configRefreshKey}`} initialQuery={query} onNavigate={navigate} />;
+      return (
+        <ExplorePage
+          key={`${query}-${configRefreshKey}`}
+          initialQuery={query}
+          onNavigate={navigate}
+        />
+      );
     }
 
     // Extension detail route e.g. "ext/:namespace/:id"
@@ -99,23 +105,16 @@ export const App: React.FC = () => {
       <AuthProvider>
         <div className="min-h-screen flex flex-col bg-[#fcfcfd] dark:bg-[#0f0f13] text-zinc-900 dark:text-zinc-100 font-sans selection:bg-[#7b42bc] selection:text-white transition-colors duration-150">
           {/* Navigation Bar */}
-          <Navbar
-            currentRoute={route}
-            onNavigate={navigate}
-          />
+          <Navbar currentRoute={route} onNavigate={navigate} />
 
           {/* Global Terms Acceptance Warning Banner */}
           <TermsBanner onNavigate={navigate} />
 
           {/* Main Content Area */}
-          <main className="flex-1">
-            {renderCurrentPage()}
-          </main>
+          <main className="flex-1">{renderCurrentPage()}</main>
 
           {/* Footer */}
-          <Footer
-            onNavigate={navigate}
-          />
+          <Footer onNavigate={navigate} />
         </div>
       </AuthProvider>
     </ThemeProvider>

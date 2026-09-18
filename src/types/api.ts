@@ -61,10 +61,12 @@ export interface Extension {
   description?: string;
   shortDescription?: string;
   readme?: string;
-  author: string | {
-    namespace: string;
-    displayName?: string;
-  };
+  author:
+    | string
+    | {
+        namespace: string;
+        displayName?: string;
+      };
   latestVersion?: string;
   status?: ModerationStatus;
   versions?: ExtensionVersion[];

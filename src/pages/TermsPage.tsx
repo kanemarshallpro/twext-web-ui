@@ -39,7 +39,8 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onNavigate }) => {
         }
       } catch (err: unknown) {
         if (isMounted) {
-          const msg = err instanceof ApiError ? err.message : 'Failed to load Terms of Service from server';
+          const msg =
+            err instanceof ApiError ? err.message : 'Failed to load Terms of Service from server';
           setError(msg);
         }
       } finally {
@@ -77,7 +78,9 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onNavigate }) => {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <FileText className="w-5 h-5 text-[#7b42bc] dark:text-[#be98f7]" />
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Terms of Service</h1>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+              Terms of Service
+            </h1>
           </div>
           <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
             {terms && (
@@ -119,7 +122,8 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onNavigate }) => {
           <div className="space-y-0.5">
             <strong className="block text-sm font-semibold">Terms Acceptance Required</strong>
             <p className="text-amber-800 dark:text-amber-300">
-              You must acknowledge and accept these terms to publish new extensions or create CI automation tokens.
+              You must acknowledge and accept these terms to publish new extensions or create CI
+              automation tokens.
             </p>
           </div>
           <button

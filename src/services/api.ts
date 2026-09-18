@@ -49,7 +49,8 @@ class ApiService {
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem('twexthub_api_base_url');
     }
-    this.token = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY_TOKEN) : null;
+    this.token =
+      typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY_TOKEN) : null;
   }
 
   getBaseUrl(): string {
@@ -104,7 +105,7 @@ class ApiService {
     const baseUrl = this.getBaseUrl();
     const url = `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
     const headers: Record<string, string> = {
-      'Accept': 'application/json',
+      Accept: 'application/json',
       ...((options.headers as Record<string, string>) || {}),
     };
 
@@ -133,7 +134,8 @@ class ApiService {
     }
 
     const contentType = response.headers.get('content-type') || '';
-    const isJson = contentType.includes('application/json') || contentType.includes('application/problem+json');
+    const isJson =
+      contentType.includes('application/json') || contentType.includes('application/problem+json');
 
     if (!response.ok) {
       let problem: ProblemDetails | undefined;
@@ -183,7 +185,10 @@ class ApiService {
     return this.request<Meta>('/meta');
   }
 
-  async getExtensions(params?: { cursor?: string; limit?: number }): Promise<PaginatedList<Extension>> {
+  async getExtensions(params?: {
+    cursor?: string;
+    limit?: number;
+  }): Promise<PaginatedList<Extension>> {
     const query = new URLSearchParams();
     if (params?.cursor) query.set('cursor', params.cursor);
     if (params?.limit) query.set('limit', String(params.limit));
@@ -191,7 +196,10 @@ class ApiService {
     return this.request<PaginatedList<Extension>>(`/extensions${qs ? `?${qs}` : ''}`);
   }
 
-  async searchExtensions(searchQuery: string, params?: { cursor?: string; limit?: number }): Promise<PaginatedList<Extension>> {
+  async searchExtensions(
+    searchQuery: string,
+    params?: { cursor?: string; limit?: number },
+  ): Promise<PaginatedList<Extension>> {
     const query = new URLSearchParams();
     if (searchQuery) query.set('q', searchQuery);
     if (params?.cursor) query.set('cursor', params.cursor);
@@ -201,7 +209,9 @@ class ApiService {
   }
 
   async getExtension(namespace: string, id: string): Promise<Extension> {
-    return this.request<Extension>(`/extensions/${encodeURIComponent(namespace)}/${encodeURIComponent(id)}`);
+    return this.request<Extension>(
+      `/extensions/${encodeURIComponent(namespace)}/${encodeURIComponent(id)}`,
+    );
   }
 
   async getTerms(): Promise<TermsDoc> {
@@ -236,7 +246,11 @@ class ApiService {
     return res;
   }
 
-  async signup(payload: { namespace: string; password: string; displayName?: string }): Promise<AuthSessionResponse> {
+  async signup(payload: {
+    namespace: string;
+    password: string;
+    displayName?: string;
+  }): Promise<AuthSessionResponse> {
     const res = await this.request<AuthSessionResponse>('/auth/signup', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -301,7 +315,11 @@ class ApiService {
     }
   }
 
-  async getSessions(params?: { namespace?: string; cursor?: string; limit?: number }): Promise<PaginatedList<Session>> {
+  async getSessions(params?: {
+    namespace?: string;
+    cursor?: string;
+    limit?: number;
+  }): Promise<PaginatedList<Session>> {
     const query = new URLSearchParams();
     if (params?.namespace) query.set('namespace', params.namespace);
     if (params?.cursor) query.set('cursor', params.cursor);
@@ -316,7 +334,11 @@ class ApiService {
     });
   }
 
-  async getTokens(params?: { namespace?: string; cursor?: string; limit?: number }): Promise<PaginatedList<AutomationToken>> {
+  async getTokens(params?: {
+    namespace?: string;
+    cursor?: string;
+    limit?: number;
+  }): Promise<PaginatedList<AutomationToken>> {
     const query = new URLSearchParams();
     if (params?.namespace) query.set('namespace', params.namespace);
     if (params?.cursor) query.set('cursor', params.cursor);
@@ -325,14 +347,21 @@ class ApiService {
     return this.request<PaginatedList<AutomationToken>>(`/tokens${qs ? `?${qs}` : ''}`);
   }
 
-  async createToken(data: { name: string; scopes: string[]; expiresInDays?: number }): Promise<AutomationToken> {
+  async createToken(data: {
+    name: string;
+    scopes: string[];
+    expiresInDays?: number;
+  }): Promise<AutomationToken> {
     return this.request<AutomationToken>('/tokens', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async updateToken(id: string, data: { name?: string; scopes?: string[] }): Promise<AutomationToken> {
+  async updateToken(
+    id: string,
+    data: { name?: string; scopes?: string[] },
+  ): Promise<AutomationToken> {
     return this.request<AutomationToken>(`/tokens/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -354,10 +383,13 @@ class ApiService {
 
     if (namespace && id) {
       try {
-        await this.request<VersionInfo>(`/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions`, {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
+        await this.request<VersionInfo>(
+          `/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions`,
+          {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          },
+        );
         return { success: true, message: `Extension @${namespace}/${id} uploaded successfully.` };
       } catch (err) {
         // Fallback to /publish or /extensions if scoped path returned 404
@@ -395,22 +427,31 @@ class ApiService {
   }
 
   async yankVersion(namespace: string, id: string, version: string): Promise<void> {
-    await this.request<void>(`/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}`, {
-      method: 'DELETE',
-    });
+    await this.request<void>(
+      `/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}`,
+      {
+        method: 'DELETE',
+      },
+    );
   }
 
   async downloadVersion(namespace: string, id: string, version: string): Promise<string> {
-    return this.request<string>(`/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}/download`, {
-      headers: {
-        Accept: 'text/javascript, application/javascript, */*',
+    return this.request<string>(
+      `/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}/download`,
+      {
+        headers: {
+          Accept: 'text/javascript, application/javascript, */*',
+        },
       },
-    });
+    );
   }
 
   // --- Admin Moderation & Administration Endpoints ---
 
-  async listVersionsForReview(params?: { cursor?: string; limit?: number }): Promise<PaginatedList<PendingVersion>> {
+  async listVersionsForReview(params?: {
+    cursor?: string;
+    limit?: number;
+  }): Promise<PaginatedList<PendingVersion>> {
     const query = new URLSearchParams();
     query.set('status', 'pending');
     if (params?.cursor) query.set('cursor', params.cursor);
@@ -423,17 +464,28 @@ class ApiService {
     }
   }
 
-  async reviewVersion(namespace: string, id: string, version: string, payload: ReviewVersionPayload): Promise<VersionInfo> {
+  async reviewVersion(
+    namespace: string,
+    id: string,
+    version: string,
+    payload: ReviewVersionPayload,
+  ): Promise<VersionInfo> {
     try {
-      return await this.request<VersionInfo>(`/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}/review`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      return await this.request<VersionInfo>(
+        `/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}/review`,
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+      );
     } catch {
-      return await this.request<VersionInfo>(`/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      });
+      return await this.request<VersionInfo>(
+        `/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        },
+      );
     }
   }
 

@@ -1,8 +1,14 @@
 # TwextHub Web UI
 
-The official web frontend for [TwextHub](https://twexts.sdisk.us/api/v0), the registry of Twext-compiled extensions for [TurboWarp](https://turbowarp.org).
+> The official web frontend for TwextHub, the registry of Twext-compiled extensions ("Twexts") for use in TurboWarp
 
 Built with React, TypeScript, and Tailwind CSS. This application is a **client-only SPA**: all data is fetched live from the TwextHub REST API v0 with zero local backend or database required.
+
+---
+
+### Authors
+
+Twext is maintained by the [Twext Team](https://github.com/twext).
 
 ---
 
@@ -25,14 +31,15 @@ Built with React, TypeScript, and Tailwind CSS. This application is a **client-o
 ## Local Development & Setup
 
 ### Prerequisites
-- Node.js 18+
-- npm or yarn
+
+- Node.js 22+
+- npm
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/turbowarp/twexthub-web.git
+git clone https://github.com/twext/twexthub-web.git
 cd twexthub-web
 
 # Install dependencies
@@ -57,6 +64,7 @@ This compiles optimized static assets into the `dist/` directory. You can host `
 ## API Configuration
 
 By default, the client points to the official TwextHub server:
+
 ```
 https://twexts.sdisk.us/api/v0
 ```
@@ -78,43 +86,43 @@ All endpoints return and accept JSON. Errors follow the **RFC 7807 Problem Detai
 
 ### Public Endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/stats` | Instance metrics (`published`, `pending`, `authors`) |
-| `GET` | `/extensions` | Paginated list of published extensions (`cursor`, `limit`) |
-| `GET` | `/search?q={query}` | Search extensions by query, namespace, or tags |
-| `GET` | `/extensions/:namespace/:id` | Extension details, readme, and release history |
-| `GET` | `/users` | Paginated list of registered author profiles |
-| `GET` | `/users/:namespace` | Public author profile and publication status |
-| `GET` | `/terms` | Current Terms of Service document and version |
-| `GET` | `/privacy` | Current Privacy Policy document and version |
+| Method | Path                         | Description                                                |
+| ------ | ---------------------------- | ---------------------------------------------------------- |
+| `GET`  | `/stats`                     | Instance metrics (`published`, `pending`, `authors`)       |
+| `GET`  | `/extensions`                | Paginated list of published extensions (`cursor`, `limit`) |
+| `GET`  | `/search?q={query}`          | Search extensions by query, namespace, or tags             |
+| `GET`  | `/extensions/:namespace/:id` | Extension details, readme, and release history             |
+| `GET`  | `/users`                     | Paginated list of registered author profiles               |
+| `GET`  | `/users/:namespace`          | Public author profile and publication status               |
+| `GET`  | `/terms`                     | Current Terms of Service document and version              |
+| `GET`  | `/privacy`                   | Current Privacy Policy document and version                |
 
 ### Authentication & Sessions
 
-| Method | Path | Auth Required | Description |
-|---|---|---|---|
-| `POST` | `/auth/signup` | No | Register author account (`namespace`, `password`, `displayName`) |
-| `POST` | `/auth/login` | No | Authenticate user and receive Bearer session token |
-| `POST` | `/auth/logout` | Bearer | Invalidate current session |
-| `GET` | `/sessions` | Bearer | List active web sessions for current account |
-| `DELETE` | `/sessions/:id` | Bearer | Revoke specific session |
+| Method   | Path            | Auth Required | Description                                                      |
+| -------- | --------------- | ------------- | ---------------------------------------------------------------- |
+| `POST`   | `/auth/signup`  | No            | Register author account (`namespace`, `password`, `displayName`) |
+| `POST`   | `/auth/login`   | No            | Authenticate user and receive Bearer session token               |
+| `POST`   | `/auth/logout`  | Bearer        | Invalidate current session                                       |
+| `GET`    | `/sessions`     | Bearer        | List active web sessions for current account                     |
+| `DELETE` | `/sessions/:id` | Bearer        | Revoke specific session                                          |
 
 ### Governance & Account Management
 
-| Method | Path | Auth Required | Description |
-|---|---|---|---|
-| `POST` | `/terms/accept` | Bearer | Record acceptance of Terms of Service (`version`) |
-| `PATCH` | `/users/:namespace` | Bearer | Update display name or change account password |
-| `DELETE` | `/users/:namespace` | Bearer | Delete user account and revoke all sessions |
+| Method   | Path                | Auth Required | Description                                       |
+| -------- | ------------------- | ------------- | ------------------------------------------------- |
+| `POST`   | `/terms/accept`     | Bearer        | Record acceptance of Terms of Service (`version`) |
+| `PATCH`  | `/users/:namespace` | Bearer        | Update display name or change account password    |
+| `DELETE` | `/users/:namespace` | Bearer        | Delete user account and revoke all sessions       |
 
 ### CI Automation Tokens & Publishing
 
-| Method | Path | Auth Required | Description |
-|---|---|---|---|
-| `GET` | `/tokens` | Bearer | List automation tokens |
-| `POST` | `/tokens` | Bearer | Create automation token (`name`, `scopes: ["publish", "yank"]`) |
-| `DELETE` | `/tokens/:id` | Bearer | Delete/revoke automation token |
-| `POST` | `/publish` | Bearer (`publish`) | Submit extension manifest and compiled bundle |
+| Method   | Path          | Auth Required      | Description                                                     |
+| -------- | ------------- | ------------------ | --------------------------------------------------------------- |
+| `GET`    | `/tokens`     | Bearer             | List automation tokens                                          |
+| `POST`   | `/tokens`     | Bearer             | Create automation token (`name`, `scopes: ["publish", "yank"]`) |
+| `DELETE` | `/tokens/:id` | Bearer             | Delete/revoke automation token                                  |
+| `POST`   | `/publish`    | Bearer (`publish`) | Submit extension manifest and compiled bundle                   |
 
 ---
 

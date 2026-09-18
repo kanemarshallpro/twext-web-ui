@@ -11,7 +11,6 @@ import {
   LogOut,
   LogIn,
   UserPlus,
-  Server,
   Menu,
   X,
   Search,
@@ -31,14 +30,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchNavQuery, setSearchNavQuery] = useState('');
   const [pendingCount, setPendingCount] = useState(0);
-
-  const currentHost = (() => {
-    try {
-      return new URL(api.getBaseUrl()).host;
-    } catch {
-      return 'twexts.sdisk.us';
-    }
-  })();
 
   useEffect(() => {
     if (!isAdmin) {
@@ -92,20 +83,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
 
             {/* Desktop Navigation Links */}
             <nav className="hidden md:flex items-center gap-1">
-              <button
-                onClick={() => onNavigate('search')}
-                className={navItemClass('search')}
-              >
+              <button onClick={() => onNavigate('search')} className={navItemClass('search')}>
                 <span className="flex items-center gap-1.5">
                   <Compass className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
                   Explore
                 </span>
               </button>
 
-              <button
-                onClick={() => onNavigate('publish')}
-                className={navItemClass('publish')}
-              >
+              <button onClick={() => onNavigate('publish')} className={navItemClass('publish')}>
                 <span className="flex items-center gap-1.5">
                   <Upload className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
                   Publish
@@ -160,15 +145,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
                 <Moon className="w-3.5 h-3.5 text-zinc-600" />
               )}
             </button>
-
-            {/* Dynamic Server Host Indicator */}
-            <div
-              title={`Dynamic API Endpoint: ${api.getBaseUrl()}`}
-              className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-mono text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-[#1d1d26] border border-zinc-200 dark:border-zinc-700/80 rounded-[4px]"
-            >
-              <Server className="w-3 h-3 text-[#7b42bc] dark:text-[#a57de0]" />
-              <span>{currentHost}</span>
-            </div>
 
             <div className="h-4 w-[1px] bg-zinc-200 dark:bg-zinc-800" />
 

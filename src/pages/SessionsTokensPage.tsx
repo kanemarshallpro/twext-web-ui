@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api, ApiError } from '../services/api';
 import { AutomationToken, Session, TokenScope } from '../types/api';
@@ -59,19 +59,7 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
     return curToken === tok.id || curToken.startsWith(tok.id) || curToken.includes(tok.id);
   };
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      onNavigate('login');
-      return;
-    }
-
-    if (isAuthenticated) {
-      loadSessions();
-      loadTokens();
-    }
-  }, [isAuthenticated, isLoading]);
-
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     setLoadingSessions(true);
     try {
       const res = await api.getSessions();
@@ -82,9 +70,9 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
     } finally {
       setLoadingSessions(false);
     }
-  };
+  }, []);
 
-  const loadTokens = async () => {
+  const loadTokens = useCallback(async () => {
     setLoadingTokens(true);
     try {
       const res = await api.getTokens();
@@ -95,12 +83,26 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
     } finally {
       setLoadingTokens(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      onNavigate('login');
+      return;
+    }
+
+    if (isAuthenticated) {
+      loadSessions();
+      loadTokens();
+    }
+  }, [isAuthenticated, isLoading, onNavigate, loadSessions, loadTokens]);
 
   const handleRevokeSession = async (sessionId: string) => {
     const targetSession = sessions.find((s) => s.id === sessionId);
     if (targetSession && isSessionThisDevice(targetSession)) {
-      setActionError('Cannot revoke the session currently being used on this device. Please use Logout to sign out.');
+      setActionError(
+        'Cannot revoke the session currently being used on this device. Please use Logout to sign out.',
+      );
       return;
     }
 
@@ -165,7 +167,11 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
       return;
     }
 
-    if (!confirm('Are you sure you want to delete this token? Any CI scripts using it will lose access immediately.')) {
+    if (
+      !confirm(
+        'Are you sure you want to delete this token? Any CI scripts using it will lose access immediately.',
+      )
+    ) {
       return;
     }
     setActionError(null);
@@ -198,7 +204,8 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
           Sessions & Automation Tokens
         </h1>
         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-          Manage your browser sessions and generate scoped access tokens for automated CI/CD pipelines (e.g. GitHub Actions).
+          Manage your browser sessions and generate scoped access tokens for automated CI/CD
+          pipelines (e.g. GitHub Actions).
         </p>
       </div>
 
@@ -222,10 +229,14 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
         <div className="bg-[#f6f2fc] dark:bg-[#201530] border border-[#e4d6f7] dark:border-[#432d66] p-5 rounded-[6px] space-y-3">
           <div className="flex items-center gap-2 text-[#7b42bc] dark:text-[#be98f7]">
             <Key className="w-5 h-5" />
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">Your New Automation Token</h3>
+            <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              Your New Automation Token
+            </h3>
           </div>
           <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-            Make sure to copy your automation token now. You will <strong>not</strong> be able to see it again! Store it in your GitHub repository secrets as <code className="text-zinc-800 dark:text-zinc-200 font-mono">TWEXT_TOKEN</code>.
+            Make sure to copy your automation token now. You will <strong>not</strong> be able to
+            see it again! Store it in your GitHub repository secrets as{' '}
+            <code className="text-zinc-800 dark:text-zinc-200 font-mono">TWEXT_TOKEN</code>.
           </p>
 
           <div className="relative bg-white dark:bg-[#131319] border border-[#e4d6f7] dark:border-[#432d66] rounded-[4px] p-2.5 flex items-center justify-between font-mono text-xs text-zinc-800 dark:text-zinc-200">
@@ -257,10 +268,13 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
           <div className="bg-white dark:bg-[#181822] border border-zinc-200 dark:border-zinc-800 rounded-[6px] p-5 space-y-4 transition-colors">
             <div className="flex items-center gap-2">
               <Key className="w-4 h-4 text-[#7b42bc] dark:text-[#be98f7]" />
-              <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">Generate Automation Token</h2>
+              <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                Generate Automation Token
+              </h2>
             </div>
             <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-              Automation tokens authenticate the Twext CLI in headless environments such as GitHub Actions, GitLab CI, or custom deployment bots.
+              Automation tokens authenticate the Twext CLI in headless environments such as GitHub
+              Actions, GitLab CI, or custom deployment bots.
             </p>
 
             <form onSubmit={handleCreateToken} className="space-y-3 pt-1">
@@ -291,7 +305,8 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
                       className="rounded text-[#7b42bc] focus:ring-[#7b42bc]"
                     />
                     <span>
-                      <strong className="font-mono">publish</strong> — Allow uploading new extension releases
+                      <strong className="font-mono">publish</strong> — Allow uploading new extension
+                      releases
                     </span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer text-xs text-zinc-700 dark:text-zinc-300">
@@ -302,7 +317,8 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
                       className="rounded text-[#7b42bc] focus:ring-[#7b42bc]"
                     />
                     <span>
-                      <strong className="font-mono">yank</strong> — Allow retracting/yanking bad releases
+                      <strong className="font-mono">yank</strong> — Allow retracting/yanking bad
+                      releases
                     </span>
                   </label>
                 </div>
@@ -343,7 +359,9 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-zinc-900 dark:text-zinc-100">{tok.name}</span>
+                          <span className="font-bold text-zinc-900 dark:text-zinc-100">
+                            {tok.name}
+                          </span>
                           {isCurrent && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-[#f6f2fc] dark:bg-[#281e3a] text-[#7b42bc] dark:text-[#be98f7] border border-[#e4d6f7] dark:border-[#432d66] px-1.5 py-0.5 rounded-[3px]">
                               <Key className="w-3 h-3" />
@@ -363,7 +381,8 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
                         </div>
                         <div className="text-[11px] text-zinc-400 dark:text-zinc-500">
                           Created {new Date(tok.createdAt).toLocaleDateString()}
-                          {tok.lastUsedAt && ` • Last used ${new Date(tok.lastUsedAt).toLocaleDateString()}`}
+                          {tok.lastUsedAt &&
+                            ` • Last used ${new Date(tok.lastUsedAt).toLocaleDateString()}`}
                         </div>
                       </div>
 
@@ -400,10 +419,13 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
           <div className="bg-white dark:bg-[#181822] border border-zinc-200 dark:border-zinc-800 rounded-[6px] p-5 space-y-3 transition-colors">
             <div className="flex items-center gap-2">
               <Laptop className="w-4 h-4 text-[#7b42bc] dark:text-[#be98f7]" />
-              <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">Active Web Sessions</h2>
+              <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                Active Web Sessions
+              </h2>
             </div>
             <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-              These are the devices and browsers currently logged into your Twext account. Revoking a session immediately terminates its access.
+              These are the devices and browsers currently logged into your Twext account. Revoking
+              a session immediately terminates its access.
             </p>
 
             {loadingSessions ? (
@@ -476,7 +498,8 @@ export const SessionsTokensPage: React.FC<SessionsTokensPageProps> = ({ onNaviga
               <span>Security Tip</span>
             </div>
             <p className="leading-relaxed">
-              If you suspect an automation token or session has been exposed, revoke it immediately. Revocations take effect across the entire Twext registry network within seconds.
+              If you suspect an automation token or session has been exposed, revoke it immediately.
+              Revocations take effect across the entire Twext registry network within seconds.
             </p>
           </div>
         </div>

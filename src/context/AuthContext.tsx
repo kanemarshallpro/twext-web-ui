@@ -146,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     latestTermsVersion !== null &&
     user.termsAcceptedVersion !== null &&
     user.termsAcceptedVersion !== undefined &&
-    user.termsAcceptedVersion >= latestTermsVersion
+    user.termsAcceptedVersion >= latestTermsVersion,
   );
 
   const isAdmin = Boolean(user && user.role === 'admin');

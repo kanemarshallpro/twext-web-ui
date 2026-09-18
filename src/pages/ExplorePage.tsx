@@ -33,26 +33,29 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchExtensions = useCallback(async (searchQ: string, cursor?: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      let res;
-      if (searchQ.trim()) {
-        res = await api.searchExtensions(searchQ.trim(), { cursor, limit });
-      } else {
-        res = await api.getExtensions({ cursor, limit });
+  const fetchExtensions = useCallback(
+    async (searchQ: string, cursor?: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        let res;
+        if (searchQ.trim()) {
+          res = await api.searchExtensions(searchQ.trim(), { cursor, limit });
+        } else {
+          res = await api.getExtensions({ cursor, limit });
+        }
+        setExtensions(res.data || []);
+        setPagination(res.pagination || { nextCursor: null, hasMore: false });
+      } catch (err: unknown) {
+        const msg = err instanceof ApiError ? err.message : 'Failed to load extensions';
+        setError(msg);
+        setExtensions([]);
+      } finally {
+        setLoading(false);
       }
-      setExtensions(res.data || []);
-      setPagination(res.pagination || { nextCursor: null, hasMore: false });
-    } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to load extensions';
-      setError(msg);
-      setExtensions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [limit]);
+    },
+    [limit],
+  );
 
   useEffect(() => {
     setCurrentCursor(undefined);
@@ -100,7 +103,8 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
             Explore Twext Extensions
           </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            Browse published packages, search community authors, or discover newly submitted TurboWarp plugins.
+            Browse published packages, search community authors, or discover newly submitted
+            TurboWarp plugins.
           </p>
         </div>
 
@@ -181,7 +185,8 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
         {activeQuery && (
           <div className="mt-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-400">
             <span>
-              Showing results for: <strong className="text-zinc-900 dark:text-zinc-200">"{activeQuery}"</strong>
+              Showing results for:{' '}
+              <strong className="text-zinc-900 dark:text-zinc-200">"{activeQuery}"</strong>
             </span>
             <button
               onClick={handleClearSearch}
@@ -205,7 +210,10 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-36 bg-zinc-100 dark:bg-zinc-800/50 rounded-[6px] animate-pulse border border-zinc-200 dark:border-zinc-800" />
+            <div
+              key={i}
+              className="h-36 bg-zinc-100 dark:bg-zinc-800/50 rounded-[6px] animate-pulse border border-zinc-200 dark:border-zinc-800"
+            />
           ))}
         </div>
       ) : extensions.length > 0 ? (
@@ -230,7 +238,8 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
                 typeof ext.author === 'object' && ext.author !== null
                   ? ext.author.displayName || authorNamespace
                   : authorNamespace;
-              const version = ext.latestVersion || (ext.versions && ext.versions[0]?.version) || '1.0.0';
+              const version =
+                ext.latestVersion || (ext.versions && ext.versions[0]?.version) || '1.0.0';
 
               return (
                 <div
@@ -298,7 +307,9 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
       <div className="flex items-center justify-between pt-4 border-t border-zinc-200 dark:border-zinc-800 text-xs">
         <div>
           {cursorHistory.length > 0 && (
-            <span className="text-zinc-500 dark:text-zinc-400">Page {cursorHistory.length + 1}</span>
+            <span className="text-zinc-500 dark:text-zinc-400">
+              Page {cursorHistory.length + 1}
+            </span>
           )}
         </div>
 

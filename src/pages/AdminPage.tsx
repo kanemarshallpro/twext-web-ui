@@ -24,10 +24,8 @@ import {
   Trash2,
   FileText,
   Lock,
-  ArrowRight,
   Eye,
   Sliders,
-  Sparkles,
 } from 'lucide-react';
 
 interface AdminPageProps {
@@ -176,8 +174,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       await api.reviewVersion(targetNs, item.id, item.version, {
         status: 'approved',
       });
-      setActionSuccess(`Version v${item.version} of @${targetNs}/${item.id} has been approved and published!`);
-      setPendingVersions((prev) => prev.filter((p) => !(p.id === item.id && p.version === item.version)));
+      setActionSuccess(
+        `Version v${item.version} of @${targetNs}/${item.id} has been approved and published!`,
+      );
+      setPendingVersions((prev) =>
+        prev.filter((p) => !(p.id === item.id && p.version === item.version)),
+      );
       fetchStats();
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? err.message : 'Failed to approve version';
@@ -200,7 +202,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         reason: rejectReason.trim() || 'Submission does not meet registry guidelines.',
       });
       setActionSuccess(`Version v${item.version} of @${targetNs}/${item.id} was rejected.`);
-      setPendingVersions((prev) => prev.filter((p) => !(p.id === item.id && p.version === item.version)));
+      setPendingVersions((prev) =>
+        prev.filter((p) => !(p.id === item.id && p.version === item.version)),
+      );
       setRejectModalItem(null);
       setRejectReason('');
       fetchStats();
@@ -214,7 +218,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
   // Handle Yank Version
   const handleYankVersion = async (ext: Extension, version: string) => {
-    if (!confirm(`Are you sure you want to yank version ${version} of @${ext.namespace}/${ext.id}? This will hide it from registry listings.`)) {
+    if (
+      !confirm(
+        `Are you sure you want to yank version ${version} of @${ext.namespace}/${ext.id}? This will hide it from registry listings.`,
+      )
+    ) {
       return;
     }
     clearNotifications();
@@ -231,14 +239,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
   // Handle Delete Extension
   const handleDeleteExtension = async (ext: Extension) => {
-    if (!confirm(`DANGER: Are you sure you want to permanently delete @${ext.namespace}/${ext.id} and all its versions from the registry?`)) {
+    if (
+      !confirm(
+        `DANGER: Are you sure you want to permanently delete @${ext.namespace}/${ext.id} and all its versions from the registry?`,
+      )
+    ) {
       return;
     }
     clearNotifications();
     try {
       await api.deleteExtension(ext.namespace, ext.id);
       setActionSuccess(`Extension @${ext.namespace}/${ext.id} has been permanently deleted.`);
-      setExtensions((prev) => prev.filter((e) => !(e.namespace === ext.namespace && e.id === ext.id)));
+      setExtensions((prev) =>
+        prev.filter((e) => !(e.namespace === ext.namespace && e.id === ext.id)),
+      );
       fetchStats();
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? err.message : 'Failed to delete extension';
@@ -250,7 +264,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const handleToggleUserRole = async (targetUser: User) => {
     const newRole: UserRole = targetUser.role === 'admin' ? 'normal' : 'admin';
     if (targetUser.namespace === user?.namespace && newRole === 'normal') {
-      if (!confirm('Warning: You are about to remove administrative permissions from your own account. Continue?')) {
+      if (
+        !confirm(
+          'Warning: You are about to remove administrative permissions from your own account. Continue?',
+        )
+      ) {
         return;
       }
     } else {
@@ -264,7 +282,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     try {
       const updated = await api.updateUserRole(targetUser.namespace, { role: newRole });
       setUsersList((prev) =>
-        prev.map((u) => (u.namespace === targetUser.namespace ? { ...u, role: updated.role || newRole } : u))
+        prev.map((u) =>
+          u.namespace === targetUser.namespace ? { ...u, role: updated.role || newRole } : u,
+        ),
       );
       setActionSuccess(`Updated @${targetUser.namespace}'s role to ${newRole}.`);
     } catch (err: unknown) {
@@ -318,8 +338,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           Administrator Access Required
         </h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6 leading-relaxed">
-          The administration portal is restricted to accounts with the <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded font-mono font-semibold">admin</code> role.
-          Please authenticate with an authorized administrator account to manage moderation, extensions, and users.
+          The administration portal is restricted to accounts with the{' '}
+          <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded font-mono font-semibold">
+            admin
+          </code>{' '}
+          role. Please authenticate with an authorized administrator account to manage moderation,
+          extensions, and users.
         </p>
         <div className="flex items-center justify-center gap-3">
           <button
@@ -359,7 +383,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
               </span>
             </div>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Authenticated as <strong className="text-zinc-700 dark:text-zinc-300">@{user?.namespace}</strong> • Server: <span className="font-mono">{api.getBaseUrl()}</span>
+              Authenticated as{' '}
+              <strong className="text-zinc-700 dark:text-zinc-300">@{user?.namespace}</strong> •
+              Server: <span className="font-mono">{api.getBaseUrl()}</span>
             </p>
           </div>
 
@@ -432,7 +458,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{actionSuccess}</span>
           </div>
-          <button onClick={clearNotifications} className="text-emerald-600 hover:text-emerald-800 font-bold ml-2">
+          <button
+            onClick={clearNotifications}
+            className="text-emerald-600 hover:text-emerald-800 font-bold ml-2"
+          >
             ×
           </button>
         </div>
@@ -444,7 +473,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
             <span>{actionError}</span>
           </div>
-          <button onClick={clearNotifications} className="text-rose-600 hover:text-rose-800 font-bold ml-2">
+          <button
+            onClick={clearNotifications}
+            className="text-rose-600 hover:text-rose-800 font-bold ml-2"
+          >
             ×
           </button>
         </div>
@@ -511,7 +543,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="text-xs text-zinc-500 dark:text-zinc-400">
-              {pendingVersions.length} submission{pendingVersions.length === 1 ? '' : 's'} waiting for administrative approval.
+              {pendingVersions.length} submission{pendingVersions.length === 1 ? '' : 's'} waiting
+              for administrative approval.
             </div>
             <button
               onClick={fetchPending}
@@ -535,7 +568,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 Moderation Queue is Clear
               </h3>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto">
-                No new extension versions are currently waiting for review. New releases submitted with staging status will automatically appear here.
+                No new extension versions are currently waiting for review. New releases submitted
+                with staging status will automatically appear here.
               </p>
             </div>
           ) : (
@@ -573,7 +607,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       )}
 
                       <div className="text-[11px] text-zinc-400 dark:text-zinc-500 flex items-center gap-3">
-                        <span>Submitted by <strong className="text-zinc-600 dark:text-zinc-300">@{ns}</strong></span>
+                        <span>
+                          Submitted by{' '}
+                          <strong className="text-zinc-600 dark:text-zinc-300">@{ns}</strong>
+                        </span>
                         {item.createdAt && (
                           <span>• {new Date(item.createdAt).toLocaleString()}</span>
                         )}
@@ -664,9 +701,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-zinc-900 dark:text-zinc-100">
-                        {ext.name}
-                      </span>
+                      <span className="font-bold text-zinc-900 dark:text-zinc-100">{ext.name}</span>
                       <span className="font-mono text-zinc-500">
                         @{ext.namespace}/{ext.id}
                       </span>
@@ -749,7 +784,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           ) : (
             <div className="divide-y divide-zinc-200 dark:divide-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-[6px] bg-white dark:bg-[#15151c] overflow-hidden">
               {usersList
-                .filter((u) => !userSearch || u.namespace.toLowerCase().includes(userSearch.toLowerCase()) || (u.displayName && u.displayName.toLowerCase().includes(userSearch.toLowerCase())))
+                .filter(
+                  (u) =>
+                    !userSearch ||
+                    u.namespace.toLowerCase().includes(userSearch.toLowerCase()) ||
+                    (u.displayName &&
+                      u.displayName.toLowerCase().includes(userSearch.toLowerCase())),
+                )
                 .map((u) => {
                   const isTargetAdmin = u.role === 'admin';
                   const isMe = u.namespace === user?.namespace;
@@ -779,15 +820,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                               User
                             </span>
                           )}
-                          {isMe && (
-                            <span className="text-[10px] text-zinc-400 italic">
-                              (You)
-                            </span>
-                          )}
+                          {isMe && <span className="text-[10px] text-zinc-400 italic">(You)</span>}
                         </div>
                         <div className="text-[11px] text-zinc-400 flex items-center gap-2">
-                          <span>Terms accepted: {u.termsAcceptedVersion ? `v${u.termsAcceptedVersion}` : 'None'}</span>
-                          {u.createdAt && <span>• Member since {new Date(u.createdAt).toLocaleDateString()}</span>}
+                          <span>
+                            Terms accepted:{' '}
+                            {u.termsAcceptedVersion ? `v${u.termsAcceptedVersion}` : 'None'}
+                          </span>
+                          {u.createdAt && (
+                            <span>• Member since {new Date(u.createdAt).toLocaleDateString()}</span>
+                          )}
                         </div>
                       </div>
 
@@ -804,8 +846,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                           {isUpdating
                             ? 'Saving...'
                             : isTargetAdmin
-                            ? 'Demote to Normal'
-                            : 'Promote to Admin'}
+                              ? 'Demote to Normal'
+                              : 'Promote to Admin'}
                         </button>
                       </div>
                     </div>
@@ -897,9 +939,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             </div>
 
             <p className="text-xs text-zinc-600 dark:text-zinc-400">
-              You are rejecting version <strong className="text-zinc-800 dark:text-zinc-200">v{rejectModalItem.version}</strong> of{' '}
-              <strong className="text-zinc-800 dark:text-zinc-200">@{rejectModalItem.ownerNamespace || rejectModalItem.namespace}/{rejectModalItem.id}</strong>.
-              Provide feedback to the author so they know what needs improvement.
+              You are rejecting version{' '}
+              <strong className="text-zinc-800 dark:text-zinc-200">
+                v{rejectModalItem.version}
+              </strong>{' '}
+              of{' '}
+              <strong className="text-zinc-800 dark:text-zinc-200">
+                @{rejectModalItem.ownerNamespace || rejectModalItem.namespace}/{rejectModalItem.id}
+              </strong>
+              . Provide feedback to the author so they know what needs improvement.
             </p>
 
             <div className="space-y-1.5">
@@ -943,7 +991,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   {selectedPendingDetail.name || selectedPendingDetail.id}
                 </h2>
                 <div className="font-mono text-xs text-zinc-500 flex items-center gap-2">
-                  <span>@{selectedPendingDetail.ownerNamespace || selectedPendingDetail.namespace}/{selectedPendingDetail.id}</span>
+                  <span>
+                    @{selectedPendingDetail.ownerNamespace || selectedPendingDetail.namespace}/
+                    {selectedPendingDetail.id}
+                  </span>
                   <span>•</span>
                   <span>v{selectedPendingDetail.version}</span>
                 </div>
@@ -975,13 +1026,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 <div className="bg-zinc-50 dark:bg-zinc-900/40 p-2.5 rounded border border-zinc-200 dark:border-zinc-800">
                   <span className="text-zinc-400 text-[11px] block">Author</span>
                   <span className="font-medium text-zinc-800 dark:text-zinc-200">
-                    {selectedPendingDetail.author || selectedPendingDetail.ownerNamespace || selectedPendingDetail.namespace}
+                    {selectedPendingDetail.author ||
+                      selectedPendingDetail.ownerNamespace ||
+                      selectedPendingDetail.namespace}
                   </span>
                 </div>
               </div>
 
               <div>
-                <span className="font-semibold text-zinc-700 dark:text-zinc-300">Raw Metadata JSON:</span>
+                <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                  Raw Metadata JSON:
+                </span>
                 <pre className="mt-1 font-mono text-[11px] bg-zinc-900 text-zinc-200 p-3 rounded overflow-x-auto max-h-48">
                   {JSON.stringify(selectedPendingDetail, null, 2)}
                 </pre>

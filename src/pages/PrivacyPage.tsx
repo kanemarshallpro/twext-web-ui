@@ -21,7 +21,8 @@ export const PrivacyPage: React.FC = () => {
         }
       } catch (err: unknown) {
         if (isMounted) {
-          const msg = err instanceof ApiError ? err.message : 'Failed to load Privacy Policy from server';
+          const msg =
+            err instanceof ApiError ? err.message : 'Failed to load Privacy Policy from server';
           setError(msg);
         }
       } finally {

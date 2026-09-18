@@ -1,6 +1,0 @@
-{
-  "name": "TwextHub",
-  "description": "Official registry and directory for Twext-compiled TurboWarp extensions with publishing, search, and token management.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

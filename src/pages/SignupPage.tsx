@@ -38,11 +38,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate }) => {
     setError(null);
 
     try {
-      await signup(
-        namespace.trim().toLowerCase(),
-        password,
-        displayName.trim() || undefined
-      );
+      await signup(namespace.trim().toLowerCase(), password, displayName.trim() || undefined);
 
       // Automatically accept current terms upon signup agreement
       if (agreeTerms) {
@@ -74,7 +70,9 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate }) => {
           <div className="flex justify-center mb-2">
             <BrandLogo size="md" showText={false} />
           </div>
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Create Twext Account</h1>
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+            Create Twext Account
+          </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Claim your author namespace to publish and manage extensions on Twext.
           </p>
@@ -105,13 +103,15 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate }) => {
               />
             </div>
             <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1">
-              Lowercase letters, numbers, and hyphens (e.g. <code>my-studio</code>). Packages will be named <code>@{namespace || 'your-namespace'}/package-id</code>.
+              Lowercase letters, numbers, and hyphens (e.g. <code>my-studio</code>). Packages will
+              be named <code>@{namespace || 'your-namespace'}/package-id</code>.
             </p>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-              Display Name <span className="text-zinc-400 dark:text-zinc-500 font-normal">(optional)</span>
+              Display Name{' '}
+              <span className="text-zinc-400 dark:text-zinc-500 font-normal">(optional)</span>
             </label>
             <input
               type="text"

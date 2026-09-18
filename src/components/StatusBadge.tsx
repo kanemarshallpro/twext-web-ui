@@ -8,7 +8,10 @@ interface StatusBadgeProps {
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status = 'published', size = 'sm' }) => {
-  const styles: Record<ModerationStatus, { bg: string; text: string; border: string; label: string; icon: React.ReactNode }> = {
+  const styles: Record<
+    ModerationStatus,
+    { bg: string; text: string; border: string; label: string; icon: React.ReactNode }
+  > = {
     published: {
       bg: 'bg-emerald-50 dark:bg-emerald-950/40',
       text: 'text-emerald-700 dark:text-emerald-400',

@@ -19,7 +19,8 @@ export const ExtensionCard: React.FC<ExtensionCardProps> = ({ extension, onClick
       ? extension.author.displayName || authorNamespace
       : authorNamespace;
 
-  const version = extension.latestVersion || (extension.versions && extension.versions[0]?.version) || '1.0.0';
+  const version =
+    extension.latestVersion || (extension.versions && extension.versions[0]?.version) || '1.0.0';
   const status = extension.status || 'published';
 
   return (
@@ -45,7 +46,9 @@ export const ExtensionCard: React.FC<ExtensionCardProps> = ({ extension, onClick
               <div className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
                 <span>@{extension.namespace}</span>
                 <span>/</span>
-                <span className="font-semibold text-zinc-700 dark:text-zinc-300">{extension.id}</span>
+                <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                  {extension.id}
+                </span>
               </div>
               <h4 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 group-hover:text-[#7b42bc] dark:group-hover:text-[#be98f7] transition-colors leading-tight">
                 {extension.name}
