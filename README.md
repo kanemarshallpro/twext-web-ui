@@ -123,6 +123,7 @@ All endpoints return and accept JSON. Errors follow the **RFC 7807 Problem Detai
 | `POST`   | `/tokens`     | Bearer             | Create automation token (`name`, `scopes: ["publish", "yank"]`) |
 | `DELETE` | `/tokens/:id` | Bearer             | Delete/revoke automation token                                  |
 | `POST`   | `/publish`    | Bearer (`publish`) | Submit extension manifest and compiled bundle                   |
+| `GET`    | `/@:ns/:id/versions/:version/download` | No | Download a version's compiled `extension.js` bundle |
 
 ---
 

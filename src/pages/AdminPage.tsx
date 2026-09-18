@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api, ApiError } from '../services/api';
+import { SourceReviewModal } from '../components/SourceReviewModal';
 import {
   PendingVersion,
   Extension,
@@ -621,7 +622,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       <button
                         onClick={() => setSelectedPendingDetail(item)}
                         className="px-2.5 py-1.5 text-xs text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-[3px] font-medium flex items-center gap-1"
-                        title="Inspect metadata & files"
+                        title="Inspect manifest & source code"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>Inspect</span>
@@ -981,98 +982,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* Detail / Inspection Modal */}
+      {/* Detail / Source Review Modal */}
       {selectedPendingDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white dark:bg-[#181822] border border-zinc-200 dark:border-zinc-800 rounded-[8px] max-w-2xl w-full p-6 space-y-4 shadow-xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
-              <div className="space-y-0.5">
-                <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                  {selectedPendingDetail.name || selectedPendingDetail.id}
-                </h2>
-                <div className="font-mono text-xs text-zinc-500 flex items-center gap-2">
-                  <span>
-                    @{selectedPendingDetail.ownerNamespace || selectedPendingDetail.namespace}/
-                    {selectedPendingDetail.id}
-                  </span>
-                  <span>•</span>
-                  <span>v{selectedPendingDetail.version}</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedPendingDetail(null)}
-                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-sm font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="overflow-y-auto space-y-4 text-xs flex-1 pr-1">
-              <div>
-                <span className="font-semibold text-zinc-700 dark:text-zinc-300">Description:</span>
-                <p className="mt-1 text-zinc-600 dark:text-zinc-400 leading-relaxed bg-zinc-50 dark:bg-zinc-900/60 p-2.5 rounded border border-zinc-200 dark:border-zinc-800">
-                  {selectedPendingDetail.description || 'No description provided.'}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-2.5 rounded border border-zinc-200 dark:border-zinc-800">
-                  <span className="text-zinc-400 text-[11px] block">License</span>
-                  <span className="font-mono font-medium text-zinc-800 dark:text-zinc-200">
-                    {selectedPendingDetail.license || 'None'}
-                  </span>
-                </div>
-
-                <div className="bg-zinc-50 dark:bg-zinc-900/40 p-2.5 rounded border border-zinc-200 dark:border-zinc-800">
-                  <span className="text-zinc-400 text-[11px] block">Author</span>
-                  <span className="font-medium text-zinc-800 dark:text-zinc-200">
-                    {selectedPendingDetail.author ||
-                      selectedPendingDetail.ownerNamespace ||
-                      selectedPendingDetail.namespace}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <span className="font-semibold text-zinc-700 dark:text-zinc-300">
-                  Raw Metadata JSON:
-                </span>
-                <pre className="mt-1 font-mono text-[11px] bg-zinc-900 text-zinc-200 p-3 rounded overflow-x-auto max-h-48">
-                  {JSON.stringify(selectedPendingDetail, null, 2)}
-                </pre>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
-              <button
-                onClick={() => setSelectedPendingDetail(null)}
-                className="px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => {
-                  const itm = selectedPendingDetail;
-                  setSelectedPendingDetail(null);
-                  setRejectModalItem(itm);
-                }}
-                className="px-3 py-1.5 text-xs font-semibold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded"
-              >
-                Reject Submission
-              </button>
-              <button
-                onClick={() => {
-                  const itm = selectedPendingDetail;
-                  setSelectedPendingDetail(null);
-                  handleApprove(itm);
-                }}
-                className="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded shadow-xs"
-              >
-                Approve & Publish
-              </button>
-            </div>
-          </div>
-        </div>
+        <SourceReviewModal
+          item={selectedPendingDetail}
+          onClose={() => setSelectedPendingDetail(null)}
+          onApprove={(itm) => {
+            setSelectedPendingDetail(null);
+            handleApprove(itm);
+          }}
+          onReject={(itm) => {
+            setSelectedPendingDetail(null);
+            setRejectModalItem(itm);
+          }}
+        />
       )}
     </div>
   );
