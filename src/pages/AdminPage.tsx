@@ -1,42 +1,54 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { api, ApiError } from '../services/api';
 import { SourceReviewModal } from '../components/SourceReviewModal';
+import { UserActivityModal } from '../components/UserActivityModal';
+import { MarkdownEditorModal } from '../components/MarkdownEditorModal';
+import { MarkdownView } from '../components/MarkdownView';
+import { PrunePanel } from '../components/PrunePanel';
+import { AuditPanel } from '../components/AuditPanel';
+import { ExportPanel } from '../components/ExportPanel';
+import { useConfirm } from '../hooks/useConfirm';
 import {
   PendingVersion,
   Extension,
   User,
   InstanceStats,
+  Pagination,
   TermsDoc,
   PrivacyDoc,
   UserRole,
 } from '../types/api';
 import {
-  Shield,
   Clock,
   Package,
   Users,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
   RefreshCw,
   Search,
   ExternalLink,
   Trash2,
-  FileText,
   Lock,
   Eye,
   Sliders,
+  Activity,
+  PenLine,
+  Wrench,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 
 interface AdminPageProps {
   onNavigate: (route: string) => void;
 }
 
-type AdminTab = 'moderation' | 'catalog' | 'users' | 'policies';
+type AdminTab = 'moderation' | 'catalog' | 'users' | 'policies' | 'maintenance';
 
 export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const { user, isAuthenticated, isAdmin, isLoading: isAuthLoading } = useAuth();
+  const { confirm, confirmDialog } = useConfirm();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const [activeTab, setActiveTab] = useState<AdminTab>('moderation');
   const [stats, setStats] = useState<InstanceStats | null>(null);
@@ -45,6 +57,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   // Moderation state
   const [pendingVersions, setPendingVersions] = useState<PendingVersion[]>([]);
   const [isLoadingPending, setIsLoadingPending] = useState(false);
+  const [isLoadingMorePending, setIsLoadingMorePending] = useState(false);
+  const [pendingPagination, setPendingPagination] = useState<Pagination>({
+    nextCursor: null,
+    hasMore: false,
+  });
   const [reviewingVersionId, setReviewingVersionId] = useState<string | null>(null);
   const [rejectModalItem, setRejectModalItem] = useState<PendingVersion | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -53,13 +70,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   // Catalog state
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [isLoadingExtensions, setIsLoadingExtensions] = useState(false);
+  const [isLoadingMoreExtensions, setIsLoadingMoreExtensions] = useState(false);
+  const [catalogPagination, setCatalogPagination] = useState<Pagination>({
+    nextCursor: null,
+    hasMore: false,
+  });
   const [catalogSearch, setCatalogSearch] = useState('');
 
   // Users state
   const [usersList, setUsersList] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isLoadingMoreUsers, setIsLoadingMoreUsers] = useState(false);
+  const [usersPagination, setUsersPagination] = useState<Pagination>({
+    nextCursor: null,
+    hasMore: false,
+  });
   const [userSearch, setUserSearch] = useState('');
   const [updatingUserNamespace, setUpdatingUserNamespace] = useState<string | null>(null);
+  const [activityUser, setActivityUser] = useState<User | null>(null);
 
   // Policy docs state
   const [termsDoc, setTermsDoc] = useState<TermsDoc | null>(null);
@@ -68,15 +96,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [privacyText, setPrivacyText] = useState('');
   const [isSavingTerms, setIsSavingTerms] = useState(false);
   const [isSavingPrivacy, setIsSavingPrivacy] = useState(false);
-
-  // Feedback notifications
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  const clearNotifications = () => {
-    setActionSuccess(null);
-    setActionError(null);
-  };
+  const [policyEditor, setPolicyEditor] = useState<'terms' | 'privacy' | null>(null);
 
   // Load stats
   const fetchStats = useCallback(async () => {
@@ -92,48 +112,69 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   }, []);
 
   // Load moderation queue
-  const fetchPending = useCallback(async () => {
-    setIsLoadingPending(true);
-    try {
-      const res = await api.listVersionsForReview();
-      setPendingVersions(res.data || []);
-    } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to fetch pending versions';
-      setActionError(msg);
-    } finally {
-      setIsLoadingPending(false);
-    }
-  }, []);
+  const fetchPending = useCallback(
+    async (cursor?: string) => {
+      if (cursor) setIsLoadingMorePending(true);
+      else setIsLoadingPending(true);
+      try {
+        const res = await api.listVersionsForReview(cursor ? { cursor } : undefined);
+        const page = res?.data || [];
+        setPendingVersions((prev) => (cursor ? [...prev, ...page] : page));
+        setPendingPagination(res?.pagination || { nextCursor: null, hasMore: false });
+      } catch (err: unknown) {
+        const msg = err instanceof ApiError ? err.message : 'Failed to fetch pending versions';
+        toastError(msg);
+      } finally {
+        if (cursor) setIsLoadingMorePending(false);
+        else setIsLoadingPending(false);
+      }
+    },
+    [toastError],
+  );
 
   // Load extensions
-  const fetchExtensions = useCallback(async (query = '') => {
-    setIsLoadingExtensions(true);
-    try {
-      const res = query
-        ? await api.searchExtensions(query, { limit: 50 })
-        : await api.getExtensions({ limit: 50 });
-      setExtensions(res.data || []);
-    } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to fetch extensions';
-      setActionError(msg);
-    } finally {
-      setIsLoadingExtensions(false);
-    }
-  }, []);
+  const fetchExtensions = useCallback(
+    async (query = '', cursor?: string) => {
+      if (cursor) setIsLoadingMoreExtensions(true);
+      else setIsLoadingExtensions(true);
+      try {
+        const res = query
+          ? await api.searchExtensions(query, cursor ? { cursor, limit: 50 } : { limit: 50 })
+          : await api.getExtensions(cursor ? { cursor, limit: 50 } : { limit: 50 });
+        const page = res?.data || [];
+        setExtensions((prev) => (cursor ? [...prev, ...page] : page));
+        setCatalogPagination(res?.pagination || { nextCursor: null, hasMore: false });
+      } catch (err: unknown) {
+        const msg = err instanceof ApiError ? err.message : 'Failed to fetch extensions';
+        toastError(msg);
+      } finally {
+        if (cursor) setIsLoadingMoreExtensions(false);
+        else setIsLoadingExtensions(false);
+      }
+    },
+    [toastError],
+  );
 
   // Load users
-  const fetchUsers = useCallback(async () => {
-    setIsLoadingUsers(true);
-    try {
-      const res = await api.getUsers({ limit: 50 });
-      setUsersList(res.data || []);
-    } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to fetch users';
-      setActionError(msg);
-    } finally {
-      setIsLoadingUsers(false);
-    }
-  }, []);
+  const fetchUsers = useCallback(
+    async (cursor?: string) => {
+      if (cursor) setIsLoadingMoreUsers(true);
+      else setIsLoadingUsers(true);
+      try {
+        const res = await api.getUsers(cursor ? { cursor, limit: 50 } : { limit: 50 });
+        const page = res?.data || [];
+        setUsersList((prev) => (cursor ? [...prev, ...page] : page));
+        setUsersPagination(res?.pagination || { nextCursor: null, hasMore: false });
+      } catch (err: unknown) {
+        const msg = err instanceof ApiError ? err.message : 'Failed to fetch users';
+        toastError(msg);
+      } finally {
+        if (cursor) setIsLoadingMoreUsers(false);
+        else setIsLoadingUsers(false);
+      }
+    },
+    [toastError],
+  );
 
   // Load policies
   const fetchPolicies = useCallback(async () => {
@@ -170,12 +211,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const handleApprove = async (item: PendingVersion) => {
     const targetNs = item.ownerNamespace || item.namespace;
     setReviewingVersionId(item.id + item.version);
-    clearNotifications();
     try {
       await api.reviewVersion(targetNs, item.id, item.version, {
         status: 'approved',
       });
-      setActionSuccess(
+      toastSuccess(
         `Version v${item.version} of @${targetNs}/${item.id} has been approved and published!`,
       );
       setPendingVersions((prev) =>
@@ -184,7 +224,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       fetchStats();
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? err.message : 'Failed to approve version';
-      setActionError(msg);
+      toastError(msg);
     } finally {
       setReviewingVersionId(null);
     }
@@ -196,13 +236,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     const item = rejectModalItem;
     const targetNs = item.ownerNamespace || item.namespace;
     setReviewingVersionId(item.id + item.version);
-    clearNotifications();
     try {
       await api.reviewVersion(targetNs, item.id, item.version, {
         status: 'rejected',
         reason: rejectReason.trim() || 'Submission does not meet registry guidelines.',
       });
-      setActionSuccess(`Version v${item.version} of @${targetNs}/${item.id} was rejected.`);
+      toastSuccess(`Version v${item.version} of @${targetNs}/${item.id} was rejected.`);
       setPendingVersions((prev) =>
         prev.filter((p) => !(p.id === item.id && p.version === item.version)),
       );
@@ -211,7 +250,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       fetchStats();
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? err.message : 'Failed to reject version';
-      setActionError(msg);
+      toastError(msg);
     } finally {
       setReviewingVersionId(null);
     }
@@ -219,45 +258,46 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
   // Handle Yank Version
   const handleYankVersion = async (ext: Extension, version: string) => {
-    if (
-      !confirm(
-        `Are you sure you want to yank version ${version} of @${ext.namespace}/${ext.id}? This will hide it from registry listings.`,
-      )
-    ) {
-      return;
-    }
-    clearNotifications();
+    const confirmed = await confirm({
+      title: 'Yank version',
+      message: `Yank version ${version} of @${ext.namespace}/${ext.id}? This will hide it from registry listings.`,
+      confirmLabel: 'Yank version',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await api.yankVersion(ext.namespace, ext.id, version);
-      setActionSuccess(`Yanked version ${version} of @${ext.namespace}/${ext.id}.`);
+      toastSuccess(`Yanked version ${version} of @${ext.namespace}/${ext.id}.`);
       fetchExtensions(catalogSearch);
       fetchStats();
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? err.message : 'Failed to yank version';
-      setActionError(msg);
+      toastError(msg);
     }
   };
 
   // Handle Delete Extension
   const handleDeleteExtension = async (ext: Extension) => {
-    if (
-      !confirm(
-        `DANGER: Are you sure you want to permanently delete @${ext.namespace}/${ext.id} and all its versions from the registry?`,
-      )
-    ) {
-      return;
-    }
-    clearNotifications();
+    const packageName = `@${ext.namespace}/${ext.id}`;
+    const confirmed = await confirm({
+      title: 'Delete extension',
+      message: `Permanently delete ${packageName} and all of its versions from the registry. This cannot be undone.`,
+      confirmLabel: 'Permanently delete',
+      variant: 'danger',
+      requireText: packageName,
+      requireTextLabel: `Type ${packageName} to confirm deletion`,
+    });
+    if (!confirmed) return;
     try {
       await api.deleteExtension(ext.namespace, ext.id);
-      setActionSuccess(`Extension @${ext.namespace}/${ext.id} has been permanently deleted.`);
+      toastSuccess(`Extension @${ext.namespace}/${ext.id} has been permanently deleted.`);
       setExtensions((prev) =>
         prev.filter((e) => !(e.namespace === ext.namespace && e.id === ext.id)),
       );
       fetchStats();
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? err.message : 'Failed to delete extension';
-      setActionError(msg);
+      toastError(msg);
     }
   };
 
@@ -265,21 +305,25 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const handleToggleUserRole = async (targetUser: User) => {
     const newRole: UserRole = targetUser.role === 'admin' ? 'normal' : 'admin';
     if (targetUser.namespace === user?.namespace && newRole === 'normal') {
-      if (
-        !confirm(
-          'Warning: You are about to remove administrative permissions from your own account. Continue?',
-        )
-      ) {
-        return;
-      }
+      const confirmed = await confirm({
+        title: 'Remove your admin role',
+        message:
+          'You are about to remove administrative permissions from your own account. Continue?',
+        confirmLabel: 'Remove admin role',
+        variant: 'danger',
+      });
+      if (!confirmed) return;
     } else {
-      if (!confirm(`Change role for @${targetUser.namespace} to "${newRole}"?`)) {
-        return;
-      }
+      const confirmed = await confirm({
+        title: newRole === 'admin' ? 'Grant admin role' : 'Revoke admin role',
+        message: `Change role for @${targetUser.namespace} to "${newRole}"?`,
+        confirmLabel: newRole === 'admin' ? 'Grant admin' : 'Set to normal',
+        variant: newRole === 'admin' ? 'default' : 'danger',
+      });
+      if (!confirmed) return;
     }
 
     setUpdatingUserNamespace(targetUser.namespace);
-    clearNotifications();
     try {
       const updated = await api.updateUserRole(targetUser.namespace, { role: newRole });
       setUsersList((prev) =>
@@ -287,10 +331,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           u.namespace === targetUser.namespace ? { ...u, role: updated.role || newRole } : u,
         ),
       );
-      setActionSuccess(`Updated @${targetUser.namespace}'s role to ${newRole}.`);
+      toastSuccess(`Updated @${targetUser.namespace}'s role to ${newRole}.`);
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? err.message : 'Failed to update user role';
-      setActionError(msg);
+      toastError(msg);
     } finally {
       setUpdatingUserNamespace(null);
     }
@@ -298,55 +342,50 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
   // Handle Delete Account
   const handleDeleteUser = async (targetUser: User) => {
-    if (
-      !confirm(
-        `DANGER: Are you sure you want to permanently delete @${targetUser.namespace} and all of their extensions, versions, sessions, and tokens? This cannot be undone.`,
-      )
-    ) {
-      return;
-    }
-    clearNotifications();
+    const confirmed = await confirm({
+      title: 'Delete account',
+      message: `Permanently delete @${targetUser.namespace} and all of their extensions, versions, sessions, and tokens. This cannot be undone.`,
+      confirmLabel: 'Permanently delete',
+      variant: 'danger',
+      requireText: targetUser.namespace,
+      requireTextLabel: `Type ${targetUser.namespace} to confirm account deletion`,
+    });
+    if (!confirmed) return;
     setUpdatingUserNamespace(targetUser.namespace);
     try {
       await api.deleteUser(targetUser.namespace);
-      setActionSuccess(`Account @${targetUser.namespace} has been permanently deleted.`);
+      toastSuccess(`Account @${targetUser.namespace} has been permanently deleted.`);
       setUsersList((prev) => prev.filter((u) => u.namespace !== targetUser.namespace));
       fetchStats();
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? err.message : 'Failed to delete account';
-      setActionError(msg);
+      toastError(msg);
     } finally {
       setUpdatingUserNamespace(null);
     }
   };
 
   // Handle Save Terms
-  const handleSaveTerms = async () => {
+  const handleSaveTerms = async (body: string) => {
     setIsSavingTerms(true);
-    clearNotifications();
     try {
-      const updated = await api.updateTerms(termsText);
+      const updated = await api.updateTerms(body);
       setTermsDoc(updated);
-      setActionSuccess(`Terms of Service updated to revision #${updated.version}.`);
-    } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to update Terms of Service';
-      setActionError(msg);
+      setTermsText(updated.body);
+      toastSuccess(`Terms of Service updated to revision #${updated.version}.`);
     } finally {
       setIsSavingTerms(false);
     }
   };
 
   // Handle Save Privacy
-  const handleSavePrivacy = async () => {
+  const handleSavePrivacy = async (body: string) => {
     setIsSavingPrivacy(true);
-    clearNotifications();
     try {
-      const updated = await api.updatePrivacyPolicy(privacyText);
+      const updated = await api.updatePrivacyPolicy(body);
       setPrivacyDoc(updated);
-      setActionSuccess(`Privacy Policy updated to revision #${updated.version}.`);
-    } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to update Privacy Policy';
-      setActionError(msg);
+      setPrivacyText(updated.body);
+      toastSuccess(`Privacy Policy updated to revision #${updated.version}.`);
     } finally {
       setIsSavingPrivacy(false);
     }
@@ -356,32 +395,26 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   if (!isAuthLoading && (!isAuthenticated || !isAdmin)) {
     return (
       <div className="max-w-xl mx-auto px-4 py-20 text-center">
-        <div className="w-14 h-14 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center mb-4 border border-rose-200 dark:border-rose-900/50">
+        <div className="w-14 h-14 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center mb-4 border border-rose-200 dark:border-rose-900/50">
           <Lock className="w-7 h-7" />
         </div>
-        <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">
+        <h1 className="text-xl font-display font-semibold text-ink mb-2">
           Administrator Access Required
         </h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6 leading-relaxed">
+        <p className="text-sm text-ink-3 mb-6 leading-relaxed">
           The administration portal is restricted to accounts with the{' '}
-          <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded font-mono font-semibold">
+          <code className="chip bg-wash dark:bg-raised border-line text-ink-2 font-mono text-xs">
             admin
           </code>{' '}
           role. Please authenticate with an authorized administrator account to manage moderation,
           extensions, and users.
         </p>
         <div className="flex items-center justify-center gap-3">
-          <button
-            onClick={() => onNavigate('home')}
-            className="px-4 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-[4px] transition-colors"
-          >
+          <button onClick={() => onNavigate('home')} className="btn btn-secondary">
             Return to Registry
           </button>
           {!isAuthenticated && (
-            <button
-              onClick={() => onNavigate('login')}
-              className="px-4 py-2 text-xs font-semibold text-white bg-[#7b42bc] hover:bg-[#6834a3] rounded-[4px] transition-colors"
-            >
+            <button onClick={() => onNavigate('login')} className="btn btn-primary">
               Sign In as Admin
             </button>
           )}
@@ -393,24 +426,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Admin Header & Live System Status */}
-      <div className="bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded-[8px] p-6 shadow-xs">
+      <div className="card p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 rounded-[4px]">
-                <Shield className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-                Registry Administration
-              </h1>
-              <span className="text-[11px] font-mono uppercase font-bold tracking-wider px-2 py-0.5 rounded-[4px] bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                Admin Console
-              </span>
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Authenticated as{' '}
-              <strong className="text-zinc-700 dark:text-zinc-300">@{user?.namespace}</strong> •
-              Server: <span className="font-mono">{api.getBaseUrl()}</span>
+            <h1 className="text-xl font-display font-semibold text-ink">Registry Administration</h1>
+            <p className="text-xs text-ink-3">
+              Authenticated as <strong className="text-ink">@{user?.namespace}</strong> • Server:{' '}
+              <span className="font-mono">{api.getBaseUrl()}</span>
             </p>
           </div>
 
@@ -424,7 +446,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 if (activeTab === 'policies') fetchPolicies();
               }}
               disabled={isLoadingStats || isLoadingPending || isLoadingExtensions}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-[#1f1f2a] border border-zinc-200 dark:border-zinc-700/80 rounded-[4px] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="btn btn-secondary btn-sm"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoadingStats ? 'animate-spin' : ''}`} />
               <span>Refresh</span>
@@ -433,88 +455,45 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         </div>
 
         {/* System Metric Indicators */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-zinc-100 dark:border-zinc-800/80">
-          <div className="bg-zinc-50/70 dark:bg-[#191924] p-3 rounded-[6px] border border-zinc-200/70 dark:border-zinc-800/80">
-            <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 text-xs">
-              <span>Pending Submissions</span>
-              <Clock className="w-3.5 h-3.5 text-amber-500" />
-            </div>
-            <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-line border border-line rounded-lg overflow-hidden mt-6">
+          <div className="bg-surface p-3.5">
+            <div className="label text-ink-3">Pending</div>
+            <div className="mt-1 font-mono text-lg font-semibold text-ink">
               {stats?.pending ?? pendingVersions.length}
             </div>
           </div>
 
-          <div className="bg-zinc-50/70 dark:bg-[#191924] p-3 rounded-[6px] border border-zinc-200/70 dark:border-zinc-800/80">
-            <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 text-xs">
-              <span>Published Extensions</span>
-              <Package className="w-3.5 h-3.5 text-[#7b42bc] dark:text-[#a57de0]" />
-            </div>
-            <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mt-1">
+          <div className="bg-surface p-3.5">
+            <div className="label text-ink-3">Published</div>
+            <div className="mt-1 font-mono text-lg font-semibold text-ink">
               {stats?.published ?? extensions.length}
             </div>
           </div>
 
-          <div className="bg-zinc-50/70 dark:bg-[#191924] p-3 rounded-[6px] border border-zinc-200/70 dark:border-zinc-800/80">
-            <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 text-xs">
-              <span>Registered Authors</span>
-              <Users className="w-3.5 h-3.5 text-emerald-500" />
-            </div>
-            <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mt-1">
+          <div className="bg-surface p-3.5">
+            <div className="label text-ink-3">Authors</div>
+            <div className="mt-1 font-mono text-lg font-semibold text-ink">
               {stats?.authors ?? usersList.length}
             </div>
           </div>
 
-          <div className="bg-zinc-50/70 dark:bg-[#191924] p-3 rounded-[6px] border border-zinc-200/70 dark:border-zinc-800/80">
-            <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400 text-xs">
-              <span>Terms Revision</span>
-              <FileText className="w-3.5 h-3.5 text-blue-500" />
-            </div>
-            <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mt-1">
+          <div className="bg-surface p-3.5">
+            <div className="label text-ink-3">Terms revision</div>
+            <div className="mt-1 font-mono text-lg font-semibold text-ink">
               v{termsDoc?.version ?? 1}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Notifications */}
-      {actionSuccess && (
-        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-[6px] text-xs text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{actionSuccess}</span>
-          </div>
-          <button
-            onClick={clearNotifications}
-            className="text-emerald-600 hover:text-emerald-800 font-bold ml-2"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {actionError && (
-        <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-[6px] text-xs text-rose-800 dark:text-rose-300 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>{actionError}</span>
-          </div>
-          <button
-            onClick={clearNotifications}
-            className="text-rose-600 hover:text-rose-800 font-bold ml-2"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
       {/* Admin Tabs */}
-      <div className="flex border-b border-zinc-200 dark:border-zinc-800 gap-2">
+      <div className="flex border-b border-line gap-2">
         <button
           onClick={() => setActiveTab('moderation')}
           className={`pb-3 px-3 text-xs font-semibold border-b-2 flex items-center gap-2 transition-colors ${
             activeTab === 'moderation'
-              ? 'border-[#7b42bc] dark:border-[#be98f7] text-[#7b42bc] dark:text-[#be98f7]'
-              : 'border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+              ? 'border-lilac-500 dark:border-lilac-300 text-lilac-700 dark:text-lilac-300'
+              : 'border-transparent text-ink-3 hover:text-ink'
           }`}
         >
           <Clock className="w-4 h-4" />
@@ -530,8 +509,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           onClick={() => setActiveTab('catalog')}
           className={`pb-3 px-3 text-xs font-semibold border-b-2 flex items-center gap-2 transition-colors ${
             activeTab === 'catalog'
-              ? 'border-[#7b42bc] dark:border-[#be98f7] text-[#7b42bc] dark:text-[#be98f7]'
-              : 'border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+              ? 'border-lilac-500 dark:border-lilac-300 text-lilac-700 dark:text-lilac-300'
+              : 'border-transparent text-ink-3 hover:text-ink'
           }`}
         >
           <Package className="w-4 h-4" />
@@ -542,8 +521,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           onClick={() => setActiveTab('users')}
           className={`pb-3 px-3 text-xs font-semibold border-b-2 flex items-center gap-2 transition-colors ${
             activeTab === 'users'
-              ? 'border-[#7b42bc] dark:border-[#be98f7] text-[#7b42bc] dark:text-[#be98f7]'
-              : 'border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+              ? 'border-lilac-500 dark:border-lilac-300 text-lilac-700 dark:text-lilac-300'
+              : 'border-transparent text-ink-3 hover:text-ink'
           }`}
         >
           <Users className="w-4 h-4" />
@@ -554,12 +533,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           onClick={() => setActiveTab('policies')}
           className={`pb-3 px-3 text-xs font-semibold border-b-2 flex items-center gap-2 transition-colors ${
             activeTab === 'policies'
-              ? 'border-[#7b42bc] dark:border-[#be98f7] text-[#7b42bc] dark:text-[#be98f7]'
-              : 'border-transparent text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+              ? 'border-lilac-500 dark:border-lilac-300 text-lilac-700 dark:text-lilac-300'
+              : 'border-transparent text-ink-3 hover:text-ink'
           }`}
         >
           <Sliders className="w-4 h-4" />
           <span>Platform Policies</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('maintenance')}
+          className={`pb-3 px-3 text-xs font-semibold border-b-2 flex items-center gap-2 transition-colors ${
+            activeTab === 'maintenance'
+              ? 'border-lilac-500 dark:border-lilac-300 text-lilac-700 dark:text-lilac-300'
+              : 'border-transparent text-ink-3 hover:text-ink'
+          }`}
+        >
+          <Wrench className="w-4 h-4" />
+          <span>Maintenance</span>
         </button>
       </div>
 
@@ -567,14 +558,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       {activeTab === 'moderation' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">
+            <div className="text-xs text-ink-3">
               {pendingVersions.length} submission{pendingVersions.length === 1 ? '' : 's'} waiting
               for administrative approval.
             </div>
             <button
-              onClick={fetchPending}
+              onClick={() => fetchPending()}
               disabled={isLoadingPending}
-              className="text-xs text-[#7b42bc] dark:text-[#be98f7] hover:underline flex items-center gap-1 font-medium"
+              className="text-xs text-lilac-700 dark:text-lilac-300 hover:underline flex items-center gap-1 font-medium"
             >
               <RefreshCw className={`w-3 h-3 ${isLoadingPending ? 'animate-spin' : ''}`} />
               <span>Reload Queue</span>
@@ -583,16 +574,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
           {isLoadingPending ? (
             <div className="space-y-3">
-              <div className="h-24 bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded-[6px] animate-pulse" />
-              <div className="h-24 bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded-[6px] animate-pulse" />
+              <div className="h-24 card animate-pulse" />
+              <div className="h-24 card animate-pulse" />
             </div>
           ) : pendingVersions.length === 0 ? (
-            <div className="bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded-[8px] p-12 text-center">
+            <div className="card p-12 text-center">
               <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mb-1">
-                Moderation Queue is Clear
-              </h3>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto">
+              <h3 className="text-sm font-semibold text-ink mb-1">Moderation Queue is Clear</h3>
+              <p className="text-xs text-ink-3 max-w-sm mx-auto">
                 No new extension versions are currently waiting for review. New releases submitted
                 with staging status will automatically appear here.
               </p>
@@ -605,36 +594,31 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 return (
                   <div
                     key={`${ns}/${item.id}/${item.version}`}
-                    className="bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded-[6px] p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors hover:border-zinc-300 dark:hover:border-zinc-700"
+                    className="card p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors hover:border-lilac-400 dark:hover:border-lilac-700"
                   >
                     <div className="space-y-1.5 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
-                          {item.name || item.id}
-                        </span>
-                        <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
+                        <span className="font-bold text-sm text-ink">{item.name || item.id}</span>
+                        <span className="font-mono text-xs text-ink-3">
                           @{ns}/{item.id}
                         </span>
-                        <span className="px-2 py-0.5 text-[11px] font-mono font-semibold bg-[#f6f2fc] dark:bg-[#281e3a] text-[#7b42bc] dark:text-[#be98f7] border border-[#e4d6f7] dark:border-[#432d66] rounded-[3px]">
+                        <span className="chip bg-lilac-50 dark:bg-lilac-900 text-lilac-700 dark:text-lilac-300 border-lilac-200 dark:border-lilac-800 font-mono text-[11px]">
                           v{item.version}
                         </span>
                         {item.license && (
-                          <span className="text-[10px] uppercase font-mono bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700">
+                          <span className="text-[10px] uppercase font-mono bg-wash dark:bg-raised text-ink-2 px-1.5 py-0.5 rounded border border-line">
                             {item.license}
                           </span>
                         )}
                       </div>
 
                       {item.description && (
-                        <p className="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2">
-                          {item.description}
-                        </p>
+                        <p className="text-xs text-ink-2 line-clamp-2">{item.description}</p>
                       )}
 
-                      <div className="text-[11px] text-zinc-400 dark:text-zinc-500 flex items-center gap-3">
+                      <div className="text-[11px] text-ink-3 flex items-center gap-3">
                         <span>
-                          Submitted by{' '}
-                          <strong className="text-zinc-600 dark:text-zinc-300">@{ns}</strong>
+                          Submitted by <strong className="text-ink-2">@{ns}</strong>
                         </span>
                         {item.createdAt && (
                           <span>• {new Date(item.createdAt).toLocaleString()}</span>
@@ -645,7 +629,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => setSelectedPendingDetail(item)}
-                        className="px-2.5 py-1.5 text-xs text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-[3px] font-medium flex items-center gap-1"
+                        className="btn btn-sm btn-secondary"
                         title="Inspect source code"
                       >
                         <Eye className="w-3.5 h-3.5" />
@@ -655,7 +639,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       <button
                         onClick={() => setRejectModalItem(item)}
                         disabled={isWorking}
-                        className="px-2.5 py-1.5 text-xs text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-900/60 rounded-[3px] font-medium flex items-center gap-1 transition-colors"
+                        className="px-2.5 py-1.5 text-xs text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-900/60 rounded-md font-medium flex items-center gap-1 transition-colors"
                       >
                         <XCircle className="w-3.5 h-3.5" />
                         <span>Reject</span>
@@ -664,7 +648,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       <button
                         onClick={() => handleApprove(item)}
                         disabled={isWorking}
-                        className="px-3 py-1.5 text-xs text-white bg-emerald-600 hover:bg-emerald-700 rounded-[3px] font-semibold flex items-center gap-1 shadow-xs transition-colors"
+                        className="btn btn-sm bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         <span>{isWorking ? 'Approving...' : 'Approve'}</span>
@@ -673,6 +657,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {pendingPagination.hasMore && (
+            <div className="pt-2 text-center">
+              <button
+                onClick={() => fetchPending(pendingPagination.nextCursor || undefined)}
+                disabled={isLoadingMorePending}
+                className="btn btn-secondary btn-sm disabled:opacity-50"
+              >
+                {isLoadingMorePending ? 'Loading...' : 'Load more submissions'}
+              </button>
             </div>
           )}
         </div>
@@ -694,14 +690,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 placeholder="Search extensions in catalog..."
                 value={catalogSearch}
                 onChange={(e) => setCatalogSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded-[4px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+                className="input pl-8 pr-3 py-1.5 text-xs"
               />
-              <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-ink-3 absolute left-2.5 top-2.5" />
             </form>
 
             <button
               onClick={() => fetchExtensions(catalogSearch)}
-              className="text-xs text-[#7b42bc] dark:text-[#be98f7] font-medium flex items-center gap-1"
+              className="text-xs text-lilac-700 dark:text-lilac-300 font-medium flex items-center gap-1"
             >
               <RefreshCw className="w-3 h-3" />
               <span>Refresh Catalog</span>
@@ -710,15 +706,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
           {isLoadingExtensions ? (
             <div className="space-y-2">
-              <div className="h-16 bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded animate-pulse" />
-              <div className="h-16 bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded animate-pulse" />
+              <div className="h-16 bg-wash dark:bg-raised border border-line rounded animate-pulse" />
+              <div className="h-16 bg-wash dark:bg-raised border border-line rounded animate-pulse" />
             </div>
           ) : extensions.length === 0 ? (
-            <div className="p-8 text-center bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded text-xs text-zinc-500">
+            <div className="p-8 text-center bg-surface dark:bg-surface border border-line rounded-lg text-xs text-ink-3">
               No extensions found matching your search.
             </div>
           ) : (
-            <div className="divide-y divide-zinc-200 dark:divide-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-[6px] bg-white dark:bg-[#15151c] overflow-hidden">
+            <div className="divide-y divide-line border border-line rounded-lg bg-surface dark:bg-surface overflow-hidden">
               {extensions.map((ext) => (
                 <div
                   key={`${ext.namespace}/${ext.id}`}
@@ -726,27 +722,25 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-zinc-900 dark:text-zinc-100">{ext.name}</span>
-                      <span className="font-mono text-zinc-500">
+                      <span className="font-bold text-ink">{ext.name}</span>
+                      <span className="font-mono text-ink-3">
                         @{ext.namespace}/{ext.id}
                       </span>
                       {ext.latestVersion && (
-                        <span className="px-1.5 py-0.2 font-mono text-[10px] bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded border border-zinc-200 dark:border-zinc-700">
+                        <span className="px-1.5 py-0.2 font-mono text-[10px] bg-wash dark:bg-raised text-ink-2 rounded border border-line">
                           v{ext.latestVersion}
                         </span>
                       )}
                     </div>
                     {ext.description && (
-                      <p className="text-zinc-500 dark:text-zinc-400 line-clamp-1 max-w-xl">
-                        {ext.description}
-                      </p>
+                      <p className="text-ink-2 line-clamp-1 max-w-xl">{ext.description}</p>
                     )}
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => onNavigate(`ext/${ext.namespace}/${ext.id}`)}
-                      className="px-2.5 py-1 text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-[3px] font-medium flex items-center gap-1"
+                      className="px-2.5 py-1 text-ink-2 bg-wash dark:bg-raised hover:bg-line dark:hover:bg-wash border border-line rounded-md font-medium flex items-center gap-1 transition-colors"
                     >
                       <ExternalLink className="w-3 h-3" />
                       <span>View</span>
@@ -755,7 +749,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     {ext.latestVersion && (
                       <button
                         onClick={() => handleYankVersion(ext, ext.latestVersion!)}
-                        className="px-2.5 py-1 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800/60 rounded-[3px] font-medium"
+                        className="px-2.5 py-1 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 border border-amber-200 dark:border-amber-800/60 rounded-md font-medium"
                         title="Yank latest version from registry"
                       >
                         Yank v{ext.latestVersion}
@@ -764,7 +758,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
                     <button
                       onClick={() => handleDeleteExtension(ext)}
-                      className="p-1.5 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-[3px] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      className="p-1.5 text-ink-3 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-wash dark:hover:bg-raised transition-colors"
                       title="Permanently Delete Extension"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -772,6 +766,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {catalogPagination.hasMore && (
+            <div className="pt-2 text-center">
+              <button
+                onClick={() =>
+                  fetchExtensions(catalogSearch, catalogPagination.nextCursor || undefined)
+                }
+                disabled={isLoadingMoreExtensions}
+                className="btn btn-secondary btn-sm disabled:opacity-50"
+              >
+                {isLoadingMoreExtensions ? 'Loading...' : 'Load more extensions'}
+              </button>
             </div>
           )}
         </div>
@@ -787,14 +795,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 placeholder="Filter users by namespace..."
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded-[4px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400"
+                className="input pl-8 pr-3 py-1.5 text-xs"
               />
-              <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-ink-3 absolute left-2.5 top-2.5" />
             </div>
 
             <button
-              onClick={fetchUsers}
-              className="text-xs text-[#7b42bc] dark:text-[#be98f7] font-medium flex items-center gap-1"
+              onClick={() => fetchUsers()}
+              className="text-xs text-lilac-700 dark:text-lilac-300 font-medium flex items-center gap-1"
             >
               <RefreshCw className="w-3 h-3" />
               <span>Refresh Users</span>
@@ -803,11 +811,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
 
           {isLoadingUsers ? (
             <div className="space-y-2">
-              <div className="h-14 bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded animate-pulse" />
-              <div className="h-14 bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded animate-pulse" />
+              <div className="h-14 card animate-pulse" />
+              <div className="h-14 card animate-pulse" />
             </div>
           ) : (
-            <div className="divide-y divide-zinc-200 dark:divide-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-[6px] bg-white dark:bg-[#15151c] overflow-hidden">
+            <div className="card divide-y divide-line overflow-hidden">
               {usersList
                 .filter(
                   (u) =>
@@ -828,26 +836,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     >
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-zinc-900 dark:text-zinc-100">
-                            @{u.namespace}
-                          </span>
-                          {u.displayName && (
-                            <span className="text-zinc-500 dark:text-zinc-400">
-                              ({u.displayName})
-                            </span>
-                          )}
+                          <span className="font-bold text-ink">@{u.namespace}</span>
+                          {u.displayName && <span className="text-ink-2">({u.displayName})</span>}
                           {isTargetAdmin ? (
                             <span className="px-1.5 py-0.2 text-[10px] font-bold uppercase tracking-wider bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 rounded">
                               Admin
                             </span>
                           ) : (
-                            <span className="px-1.5 py-0.2 text-[10px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded">
+                            <span className="px-1.5 py-0.2 text-[10px] font-medium bg-wash dark:bg-raised text-ink-2 rounded border border-line">
                               User
                             </span>
                           )}
-                          {isMe && <span className="text-[10px] text-zinc-400 italic">(You)</span>}
+                          {isMe && <span className="text-[10px] text-ink-3 italic">(You)</span>}
                         </div>
-                        <div className="text-[11px] text-zinc-400 flex items-center gap-2">
+                        <div className="text-[11px] text-ink-3 flex items-center gap-2">
                           <span>
                             Terms accepted:{' '}
                             {u.termsAcceptedVersion ? `v${u.termsAcceptedVersion}` : 'None'}
@@ -859,12 +861,30 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {isMe ? (
+                          <button
+                            onClick={() => onNavigate('settings')}
+                            className="p-1.5 text-ink-3 hover:text-lilac-700 dark:hover:text-lilac-300 rounded-md hover:bg-wash dark:hover:bg-raised transition-colors"
+                            title="Manage your own sessions & tokens in Settings"
+                            aria-label="Manage your own sessions and tokens in Settings"
+                          >
+                            <SettingsIcon className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setActivityUser(u)}
+                            className="p-1.5 text-ink-3 hover:text-lilac-700 dark:hover:text-lilac-300 rounded-md hover:bg-wash dark:hover:bg-raised transition-colors"
+                            title={`Sessions & tokens for @${u.namespace}`}
+                          >
+                            <Activity className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleToggleUserRole(u)}
                           disabled={isUpdating}
-                          className={`px-2.5 py-1 text-xs font-medium rounded-[3px] border transition-colors ${
+                          className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
                             isTargetAdmin
-                              ? 'text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100'
+                              ? 'text-ink-2 bg-surface dark:bg-raised border-line hover:bg-wash'
                               : 'text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 hover:bg-amber-100'
                           }`}
                         >
@@ -879,7 +899,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                           <button
                             onClick={() => handleDeleteUser(u)}
                             disabled={isUpdating}
-                            className="p-1.5 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-[3px] hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                            className="p-1.5 text-ink-3 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-wash dark:hover:bg-raised transition-colors disabled:opacity-50"
                             title={`Permanently delete @${u.namespace}`}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -891,76 +911,135 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 })}
             </div>
           )}
+
+          {usersPagination.hasMore && (
+            <div className="pt-2 text-center">
+              <button
+                onClick={() => fetchUsers(usersPagination.nextCursor || undefined)}
+                disabled={isLoadingMoreUsers}
+                className="btn btn-secondary btn-sm disabled:opacity-50"
+              >
+                {isLoadingMoreUsers ? 'Loading...' : 'Load more accounts'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {/* Tab 4: Platform Policies */}
       {activeTab === 'policies' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Terms of Service Editor */}
-          <div className="bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded-[8px] p-5 space-y-3">
-            <div className="flex items-center justify-between">
+          {/* Terms of Service */}
+          <div className="card p-5 space-y-3">
+            <div className="flex items-start justify-between gap-3">
               <div className="space-y-0.5">
-                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                <h3 className="text-sm font-semibold text-ink">
                   Terms of Service (v{termsDoc?.version ?? 1})
                 </h3>
-                <p className="text-[11px] text-zinc-400">
-                  Editing this document may prompt users to re-accept the updated terms version.
+                <p className="text-[11px] text-ink-3">
+                  Publishing a new revision may prompt users to re-accept the updated terms.
                 </p>
+                {termsDoc?.updatedAt && (
+                  <p className="text-[11px] text-ink-3">
+                    Last updated {new Date(termsDoc.updatedAt).toLocaleString()}
+                  </p>
+                )}
               </div>
               <button
-                onClick={handleSaveTerms}
-                disabled={isSavingTerms}
-                className="px-3 py-1.5 text-xs font-semibold text-white bg-[#7b42bc] hover:bg-[#6834a3] rounded-[4px] transition-colors"
+                onClick={() => setPolicyEditor('terms')}
+                className="btn btn-primary btn-sm shrink-0"
               >
-                {isSavingTerms ? 'Saving...' : 'Publish Terms'}
+                <PenLine className="w-3.5 h-3.5" />
+                <span>Open Editor</span>
               </button>
             </div>
 
-            <textarea
-              rows={16}
-              value={termsText}
-              onChange={(e) => setTermsText(e.target.value)}
-              className="w-full font-mono text-xs p-3 bg-zinc-50 dark:bg-[#181822] border border-zinc-200 dark:border-zinc-700/80 rounded-[4px] text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-[#7b42bc]"
-              placeholder="Markdown terms of service..."
-            />
+            <div className="h-72 overflow-auto border border-line rounded-lg bg-wash dark:bg-raised p-4">
+              {termsText ? (
+                <MarkdownView content={termsText} />
+              ) : (
+                <p className="text-xs text-ink-3 italic">No terms of service published yet.</p>
+              )}
+            </div>
           </div>
 
-          {/* Privacy Policy Editor */}
-          <div className="bg-white dark:bg-[#15151c] border border-zinc-200 dark:border-zinc-800 rounded-[8px] p-5 space-y-3">
-            <div className="flex items-center justify-between">
+          {/* Privacy Policy */}
+          <div className="card p-5 space-y-3">
+            <div className="flex items-start justify-between gap-3">
               <div className="space-y-0.5">
-                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                <h3 className="text-sm font-semibold text-ink">
                   Privacy Policy (v{privacyDoc?.version ?? 1})
                 </h3>
-                <p className="text-[11px] text-zinc-400">
+                <p className="text-[11px] text-ink-3">
                   Public privacy statement explaining data retention and user privacy commitments.
                 </p>
+                {privacyDoc?.updatedAt && (
+                  <p className="text-[11px] text-ink-3">
+                    Last updated {new Date(privacyDoc.updatedAt).toLocaleString()}
+                  </p>
+                )}
               </div>
               <button
-                onClick={handleSavePrivacy}
-                disabled={isSavingPrivacy}
-                className="px-3 py-1.5 text-xs font-semibold text-white bg-[#7b42bc] hover:bg-[#6834a3] rounded-[4px] transition-colors"
+                onClick={() => setPolicyEditor('privacy')}
+                className="btn btn-primary btn-sm shrink-0"
               >
-                {isSavingPrivacy ? 'Saving...' : 'Publish Privacy'}
+                <PenLine className="w-3.5 h-3.5" />
+                <span>Open Editor</span>
               </button>
             </div>
 
-            <textarea
-              rows={16}
-              value={privacyText}
-              onChange={(e) => setPrivacyText(e.target.value)}
-              className="w-full font-mono text-xs p-3 bg-zinc-50 dark:bg-[#181822] border border-zinc-200 dark:border-zinc-700/80 rounded-[4px] text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-[#7b42bc]"
-              placeholder="Markdown privacy policy..."
-            />
+            <div className="h-72 overflow-auto border border-line rounded-lg bg-wash dark:bg-raised p-4">
+              {privacyText ? (
+                <MarkdownView content={privacyText} />
+              ) : (
+                <p className="text-xs text-ink-3 italic">No privacy policy published yet.</p>
+              )}
+            </div>
           </div>
+        </div>
+      )}
+
+      {policyEditor === 'terms' && (
+        <MarkdownEditorModal
+          title="Terms of Service"
+          version={termsDoc?.version ?? 1}
+          value={termsText}
+          isSaving={isSavingTerms}
+          onClose={() => setPolicyEditor(null)}
+          onSave={handleSaveTerms}
+        />
+      )}
+
+      {policyEditor === 'privacy' && (
+        <MarkdownEditorModal
+          title="Privacy Policy"
+          version={privacyDoc?.version ?? 1}
+          value={privacyText}
+          isSaving={isSavingPrivacy}
+          onClose={() => setPolicyEditor(null)}
+          onSave={handleSavePrivacy}
+        />
+      )}
+
+      {/* Tab 5: Maintenance */}
+      {activeTab === 'maintenance' && (
+        <div className="space-y-4">
+          <AuditPanel />
+          <ExportPanel />
+          <PrunePanel
+            currentUserNamespace={user?.namespace}
+            onPruned={() => {
+              fetchUsers();
+              fetchStats();
+            }}
+          />
         </div>
       )}
 
       {/* Reject Modal */}
       {rejectModalItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white dark:bg-[#181822] border border-zinc-200 dark:border-zinc-800 rounded-[8px] max-w-md w-full p-5 space-y-4 shadow-xl">
+          <div className="card max-w-md w-full p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-sm">
                 <XCircle className="w-4 h-4" />
@@ -968,48 +1047,37 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
               </div>
               <button
                 onClick={() => setRejectModalItem(null)}
-                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                className="text-ink-3 hover:text-ink"
               >
                 ✕
               </button>
             </div>
 
-            <p className="text-xs text-zinc-600 dark:text-zinc-400">
+            <p className="text-xs text-ink-2">
               You are rejecting version{' '}
-              <strong className="text-zinc-800 dark:text-zinc-200">
-                v{rejectModalItem.version}
-              </strong>{' '}
-              of{' '}
-              <strong className="text-zinc-800 dark:text-zinc-200">
+              <strong className="text-ink">v{rejectModalItem.version}</strong> of{' '}
+              <strong className="text-ink">
                 @{rejectModalItem.ownerNamespace || rejectModalItem.namespace}/{rejectModalItem.id}
               </strong>
               . Provide feedback to the author so they know what needs improvement.
             </p>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                Rejection Reason / Guidance:
-              </label>
+              <label className="label block">Rejection Reason / Guidance:</label>
               <textarea
                 rows={4}
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="e.g. Manifest icon is missing, or code contains undeclared network calls without security justification."
-                className="w-full p-2 text-xs bg-zinc-50 dark:bg-[#14141c] border border-zinc-200 dark:border-zinc-700 rounded text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-rose-500"
+                className="input font-mono p-2 text-xs"
               />
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setRejectModalItem(null)}
-                className="px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded"
-              >
+              <button onClick={() => setRejectModalItem(null)} className="btn btn-ghost btn-sm">
                 Cancel
               </button>
-              <button
-                onClick={handleRejectConfirm}
-                className="px-3 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded shadow-xs"
-              >
+              <button onClick={handleRejectConfirm} className="btn btn-danger btn-sm">
                 Confirm Rejection
               </button>
             </div>
@@ -1032,6 +1100,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           }}
         />
       )}
+
+      {activityUser && (
+        <UserActivityModal
+          namespace={activityUser.namespace}
+          onClose={() => setActivityUser(null)}
+        />
+      )}
+
+      {confirmDialog}
     </div>
   );
 };

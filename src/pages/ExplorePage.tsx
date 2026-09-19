@@ -1,8 +1,17 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { api, ApiError } from '../services/api';
 import { Extension, Pagination } from '../types/api';
 import { ExtensionCard } from '../components/ExtensionCard';
 import { StatusBadge } from '../components/StatusBadge';
+import { useSavedExtensions } from '../hooks/useCollections';
+import { extensionAuthor } from '../lib/collections';
+import {
+  EXPLORE_LIMITS,
+  ExploreSort,
+  ExploreViewMode,
+  loadExplorePrefs,
+  saveExplorePrefs,
+} from '../lib/preferences';
 import {
   Search,
   SlidersHorizontal,
@@ -10,10 +19,12 @@ import {
   ChevronLeft,
   LayoutGrid,
   List as ListIcon,
-  Package,
   AlertCircle,
   X,
   User as UserIcon,
+  ArrowRight,
+  Bookmark,
+  ArrowDownWideNarrow,
 } from 'lucide-react';
 
 interface ExplorePageProps {
@@ -28,10 +39,32 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
   const [pagination, setPagination] = useState<Pagination>({ nextCursor: null, hasMore: false });
   const [cursorHistory, setCursorHistory] = useState<string[]>([]);
   const [currentCursor, setCurrentCursor] = useState<string | undefined>(undefined);
-  const [limit, setLimit] = useState<number>(12);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [limit, setLimit] = useState<number>(() => loadExplorePrefs().limit);
+  const [viewMode, setViewMode] = useState<ExploreViewMode>(() => loadExplorePrefs().viewMode);
+  const [sort, setSort] = useState<ExploreSort>(() => loadExplorePrefs().sort);
+  const [savedOnly, setSavedOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { isSaved } = useSavedExtensions();
+
+  useEffect(() => {
+    saveExplorePrefs({ viewMode, limit, sort });
+  }, [viewMode, limit, sort]);
+
+  const displayedExtensions = useMemo(() => {
+    let list = extensions;
+    if (savedOnly) {
+      list = list.filter((ext) => isSaved(ext.namespace, ext.id));
+    }
+    if (sort === 'newest') return list;
+    return [...list].sort((a, b) => {
+      if (sort === 'author') {
+        const byAuthor = extensionAuthor(a).localeCompare(extensionAuthor(b));
+        if (byAuthor !== 0) return byAuthor;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [extensions, savedOnly, sort, isSaved]);
 
   const fetchExtensions = useCallback(
     async (searchQ: string, cursor?: string) => {
@@ -97,26 +130,24 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-line">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
-            Explore Twext Extensions
-          </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+          <h1 className="text-2xl font-display font-semibold text-ink">Explore Twext Extensions</h1>
+          <p className="text-sm text-ink-3 mt-1">
             Browse published packages, search community authors, or discover newly submitted
             TurboWarp plugins.
           </p>
         </div>
 
-        {/* View Switcher & Limit */}
-        <div className="flex items-center gap-3 self-start sm:self-auto">
-          <div className="flex items-center border border-zinc-200 dark:border-zinc-700 rounded-[4px] bg-white dark:bg-[#181822] p-0.5">
+        {/* View Switcher, Sort & Filters */}
+        <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+          <div className="flex items-center border border-line rounded-lg bg-surface p-0.5">
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-[3px] text-xs transition-colors ${
+              className={`p-1.5 rounded-md text-sm transition-colors ${
                 viewMode === 'grid'
-                  ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-semibold'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+                  ? 'bg-lilac-50 dark:bg-lilac-900 text-lilac-700 dark:text-lilac-300 font-semibold'
+                  : 'text-ink-3 hover:text-ink'
               }`}
               title="Grid View"
             >
@@ -124,10 +155,10 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-[3px] text-xs transition-colors ${
+              className={`p-1.5 rounded-md text-sm transition-colors ${
                 viewMode === 'list'
-                  ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-semibold'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+                  ? 'bg-lilac-50 dark:bg-lilac-900 text-lilac-700 dark:text-lilac-300 font-semibold'
+                  : 'text-ink-3 hover:text-ink'
               }`}
               title="List View"
             >
@@ -135,62 +166,88 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-400" />
+          <button
+            onClick={() => setSavedOnly((v) => !v)}
+            aria-pressed={savedOnly}
+            title="Show only saved extensions"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-lg border transition-colors ${
+              savedOnly
+                ? 'border-lilac-300 dark:border-lilac-700 text-lilac-700 dark:text-lilac-300 bg-lilac-50 dark:bg-lilac-950'
+                : 'border-line text-ink-2 hover:bg-wash dark:hover:bg-raised'
+            }`}
+          >
+            <Bookmark className="w-3.5 h-3.5" fill={savedOnly ? 'currentColor' : 'none'} />
+            <span className="hidden sm:inline">Saved</span>
+          </button>
+
+          <div className="flex items-center gap-1.5 text-sm text-ink-2">
+            <ArrowDownWideNarrow className="w-3.5 h-3.5 text-ink-3" />
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as ExploreSort)}
+              aria-label="Sort results"
+              className="input w-auto px-2 py-1 text-sm"
+            >
+              <option value="newest">Newest</option>
+              <option value="name">Name (A–Z)</option>
+              <option value="author">Author</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-sm text-ink-2">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-ink-3" />
             <span className="hidden sm:inline">Per page:</span>
             <select
               value={limit}
               onChange={(e) => setLimit(Number(e.target.value))}
-              className="px-2 py-1 bg-white dark:bg-[#181822] border border-zinc-200 dark:border-zinc-700 rounded-[4px] text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-[#7b42bc]"
+              aria-label="Extensions per page"
+              className="input w-auto px-2 py-1 text-sm"
             >
-              <option value={6}>6</option>
-              <option value={12}>12</option>
-              <option value={24}>24</option>
-              <option value={48}>48</option>
+              {EXPLORE_LIMITS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
             </select>
           </div>
         </div>
       </div>
 
       {/* Search Input Bar */}
-      <div className="bg-white dark:bg-[#181822] border border-zinc-200 dark:border-zinc-800 p-3 rounded-[6px] transition-colors">
+      <div className="flex flex-col gap-2.5">
         <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-zinc-400 dark:text-zinc-500 absolute left-3 top-2.5 pointer-events-none" />
+            <Search className="w-4 h-4 text-ink-3 absolute left-3 top-3 pointer-events-none" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by extension title, namespace, author, or keywords..."
-              className="w-full pl-9 pr-8 py-2 text-xs bg-zinc-50 dark:bg-[#131319] border border-zinc-200 dark:border-zinc-700 rounded-[4px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:bg-white dark:focus:bg-[#1a1a24] focus:outline-none focus:border-[#7b42bc] dark:focus:border-[#9f75cd]"
+              className="input pl-9 pr-8 py-2 text-sm"
             />
             {query && (
               <button
                 type="button"
                 onClick={handleClearSearch}
-                className="absolute right-2.5 top-2.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                className="absolute right-2.5 top-2.5 text-ink-3 hover:text-ink"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-[#7b42bc] hover:bg-[#6935a3] dark:bg-[#8e52d6] dark:hover:bg-[#7b42bc] text-white text-xs font-medium rounded-[4px] transition-colors shrink-0"
-          >
+          <button type="submit" className="btn btn-primary shrink-0">
             Search
           </button>
         </form>
 
         {activeQuery && (
-          <div className="mt-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-400">
+          <div className="flex items-center justify-between text-sm text-ink-2">
             <span>
-              Showing results for:{' '}
-              <strong className="text-zinc-900 dark:text-zinc-200">"{activeQuery}"</strong>
+              Showing results for: <strong className="text-ink">"{activeQuery}"</strong>
             </span>
             <button
               onClick={handleClearSearch}
-              className="text-[#7b42bc] dark:text-[#be98f7] hover:underline text-[11px]"
+              className="text-lilac-700 dark:text-lilac-300 hover:underline underline-offset-4 text-xs"
             >
               Clear filter
             </button>
@@ -200,26 +257,27 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
 
       {/* Error notification */}
       {error && (
-        <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-200 p-4 rounded-[6px] text-xs flex items-center gap-2">
+        <div className="bg-rose-50 dark:bg-rose-900/50 border border-rose-200 dark:border-rose-800/60 text-rose-800 dark:text-rose-200 p-4 rounded-xl text-sm flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {/* Extensions Listing */}
+      <h2 className="sr-only">Results</h2>
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="h-36 bg-zinc-100 dark:bg-zinc-800/50 rounded-[6px] animate-pulse border border-zinc-200 dark:border-zinc-800"
+              className="h-36 bg-wash dark:bg-raised rounded-lg animate-pulse border border-line"
             />
           ))}
         </div>
-      ) : extensions.length > 0 ? (
+      ) : displayedExtensions.length > 0 ? (
         viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {extensions.map((ext) => (
+            {displayedExtensions.map((ext) => (
               <ExtensionCard
                 key={`${ext.namespace}/${ext.id}`}
                 extension={ext}
@@ -228,8 +286,8 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
             ))}
           </div>
         ) : (
-          <div className="bg-white dark:bg-[#181822] border border-zinc-200 dark:border-zinc-800 rounded-[6px] divide-y divide-zinc-200 dark:divide-zinc-800 transition-colors">
-            {extensions.map((ext) => {
+          <div className="card divide-y divide-line">
+            {displayedExtensions.map((ext) => {
               const authorNamespace =
                 typeof ext.author === 'object' && ext.author !== null
                   ? ext.author.namespace
@@ -245,33 +303,33 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
                 <div
                   key={`${ext.namespace}/${ext.id}`}
                   onClick={() => onNavigate(`ext/${ext.namespace}/${ext.id}`)}
-                  className="p-4 hover:bg-zinc-50 dark:hover:bg-[#20202c] transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  className="p-4 hover:bg-wash transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
+                      <span className="font-mono text-xs text-ink-3">
                         @{ext.namespace}/{ext.id}
                       </span>
                       <StatusBadge status={ext.status || 'published'} size="sm" />
-                      <span className="font-mono text-[11px] bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-1.5 py-0.5 rounded-[4px] border border-zinc-200 dark:border-zinc-700">
+                      <span className="chip bg-wash border-line text-ink-2 font-mono text-[11px]">
                         v{version}
                       </span>
                     </div>
-                    <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 hover:text-[#7b42bc] dark:hover:text-[#be98f7]">
+                    <h3 className="text-sm font-semibold text-ink hover:text-lilac-700 dark:hover:text-lilac-300">
                       {ext.name}
                     </h3>
-                    <p className="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-1">
+                    <p className="text-xs text-ink-2 line-clamp-1">
                       {ext.shortDescription || ext.description || 'No description provided.'}
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400 shrink-0">
+                  <div className="flex items-center gap-4 text-xs text-ink-3 shrink-0">
                     <div className="flex items-center gap-1">
-                      <UserIcon className="w-3.5 h-3.5 text-zinc-400" />
-                      <span className="text-zinc-700 dark:text-zinc-300">{authorDisplayName}</span>
+                      <UserIcon className="w-3.5 h-3.5 text-ink-3" />
+                      <span className="text-ink font-medium">{authorDisplayName}</span>
                     </div>
-                    <span className="text-[#7b42bc] dark:text-[#be98f7] font-medium hover:underline">
-                      View →
+                    <span className="text-lilac-700 dark:text-lilac-300 font-medium hover:underline inline-flex items-center gap-0.5">
+                      View <ArrowRight className="w-3 h-3" />
                     </span>
                   </div>
                 </div>
@@ -280,36 +338,46 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
           </div>
         )
       ) : (
-        <div className="bg-white dark:bg-[#181822] border border-zinc-200 dark:border-zinc-800 rounded-[6px] p-12 text-center space-y-3 transition-colors">
-          <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto text-zinc-400">
-            <Package className="w-5 h-5" />
-          </div>
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            {activeQuery ? `No extensions matching "${activeQuery}"` : 'No extensions found'}
+        <div className="border border-line rounded-lg bg-surface px-5 py-8">
+          <h3 className="text-sm font-semibold text-ink">
+            {savedOnly
+              ? 'No saved extensions in these results'
+              : activeQuery
+                ? `No extensions matching "${activeQuery}"`
+                : 'No extensions found'}
           </h3>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-sm mx-auto">
-            {activeQuery
-              ? 'Try checking for typos or searching with broader keywords.'
-              : 'The registry currently has no published extensions listed. You can publish the first!'}
+          <p className="mt-1 text-xs text-ink-3 max-w-md leading-relaxed">
+            {savedOnly
+              ? 'Tap the bookmark icon on extension cards to save them for later, or turn off the Saved filter.'
+              : activeQuery
+                ? 'Try checking for typos or searching with broader keywords.'
+                : 'The registry currently has no published extensions listed. You can publish the first!'}
           </p>
-          {activeQuery && (
+          {savedOnly ? (
             <button
-              onClick={handleClearSearch}
-              className="mt-2 text-xs font-semibold text-[#7b42bc] dark:text-[#be98f7] hover:underline"
+              onClick={() => setSavedOnly(false)}
+              className="mt-3 text-xs font-semibold text-lilac-700 dark:text-lilac-300 hover:underline"
             >
-              Clear search filter
+              Show all results
             </button>
+          ) : (
+            activeQuery && (
+              <button
+                onClick={handleClearSearch}
+                className="mt-3 text-xs font-semibold text-lilac-700 dark:text-lilac-300 hover:underline"
+              >
+                Clear search filter
+              </button>
+            )
           )}
         </div>
       )}
 
       {/* Pagination Controls */}
-      <div className="flex items-center justify-between pt-4 border-t border-zinc-200 dark:border-zinc-800 text-xs">
+      <div className="flex items-center justify-between pt-4 border-t border-line text-xs">
         <div>
           {cursorHistory.length > 0 && (
-            <span className="text-zinc-500 dark:text-zinc-400">
-              Page {cursorHistory.length + 1}
-            </span>
+            <span className="text-ink-3">Page {cursorHistory.length + 1}</span>
           )}
         </div>
 
@@ -317,7 +385,7 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
           <button
             onClick={handlePrevPage}
             disabled={cursorHistory.length === 0 || loading}
-            className="px-3 py-1.5 border border-zinc-300 dark:border-zinc-700 rounded-[4px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-medium transition-colors"
+            className="btn btn-secondary btn-sm disabled:opacity-40"
           >
             <ChevronLeft className="w-4 h-4" />
             Previous
@@ -326,7 +394,7 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ initialQuery = '', onN
           <button
             onClick={handleNextPage}
             disabled={!pagination.hasMore || loading}
-            className="px-3 py-1.5 border border-zinc-300 dark:border-zinc-700 rounded-[4px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-medium transition-colors"
+            className="btn btn-secondary btn-sm disabled:opacity-40"
           >
             Next
             <ChevronRight className="w-4 h-4" />

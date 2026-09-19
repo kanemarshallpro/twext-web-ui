@@ -1,3 +1,4 @@
+import { DEFAULT_API_BASE_URL, isValidApiBaseUrl, normalizeApiBaseUrl } from '../config/settings';
 import {
   AuthSessionResponse,
   AutomationToken,
@@ -8,7 +9,6 @@ import {
   PendingVersion,
   PrivacyDoc,
   ProblemDetails,
-  PublishPayload,
   ReviewVersionPayload,
   Session,
   TermsDoc,
@@ -20,14 +20,6 @@ import {
 
 const STORAGE_KEY_TOKEN = 'twexthub_auth_token';
 const STORAGE_KEY_USER = 'twexthub_auth_user';
-
-export function getDynamicApiBase(): string {
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    // Dynamic URL matching the current host site
-    return `${window.location.origin.replace(/\/+$/, '')}/api/v0`;
-  }
-  return 'https://twexts.sdisk.us/api/v0';
-}
 
 export class ApiError extends Error {
   status: number;
@@ -43,9 +35,10 @@ export class ApiError extends Error {
 
 class ApiService {
   private token: string | null;
+  private baseUrl: string = DEFAULT_API_BASE_URL;
 
   constructor() {
-    // Purge legacy manual server URL overrides to disallow changing server URL
+    // Purge legacy manual server URL overrides; URL is configured via config.yml / env only
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem('twexthub_api_base_url');
     }
@@ -54,16 +47,23 @@ class ApiService {
   }
 
   getBaseUrl(): string {
-    return getDynamicApiBase();
+    return this.baseUrl;
   }
 
-  // Disallowed by user request - base URL is strictly dynamic to the hosting site
-  setBaseUrl(_url: string) {
-    // No-op: changing server URL is disallowed
+  configure(config: { apiBaseUrl?: string }) {
+    if (config.apiBaseUrl && isValidApiBaseUrl(config.apiBaseUrl)) {
+      this.baseUrl = normalizeApiBaseUrl(config.apiBaseUrl);
+    } else {
+      this.baseUrl = DEFAULT_API_BASE_URL;
+    }
+  }
+
+  setBaseUrl(url: string) {
+    this.configure({ apiBaseUrl: url });
   }
 
   resetBaseUrl() {
-    // No-op
+    this.baseUrl = DEFAULT_API_BASE_URL;
   }
 
   getToken(): string | null {
@@ -201,7 +201,7 @@ class ApiService {
     params?: { cursor?: string; limit?: number },
   ): Promise<PaginatedList<Extension>> {
     const query = new URLSearchParams();
-    if (searchQuery) query.set('q', searchQuery);
+    if (searchQuery) query.set('query', searchQuery);
     if (params?.cursor) query.set('cursor', params.cursor);
     if (params?.limit) query.set('limit', String(params.limit));
     const qs = query.toString();
@@ -209,9 +209,7 @@ class ApiService {
   }
 
   async getExtension(namespace: string, id: string): Promise<Extension> {
-    return this.request<Extension>(
-      `/extensions/${encodeURIComponent(namespace)}/${encodeURIComponent(id)}`,
-    );
+    return this.request<Extension>(`/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}`);
   }
 
   async getTerms(): Promise<TermsDoc> {
@@ -376,48 +374,11 @@ class ApiService {
 
   // --- Version & Publishing Operations ---
 
-  async publish(payload: PublishPayload): Promise<{ success: boolean; message?: string }> {
-    const manifest = payload.manifest as Record<string, unknown>;
-    const namespace = (manifest?.namespace || this.getStoredUser()?.namespace) as string;
-    const id = (manifest?.id || manifest?.name) as string;
-
-    if (namespace && id) {
-      try {
-        await this.request<VersionInfo>(
-          `/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions`,
-          {
-            method: 'POST',
-            body: JSON.stringify(payload),
-          },
-        );
-        return { success: true, message: `Extension @${namespace}/${id} uploaded successfully.` };
-      } catch (err) {
-        // Fallback to /publish or /extensions if scoped path returned 404
-        if (err instanceof ApiError && err.status === 404) {
-          try {
-            await this.request<{ success?: boolean; message?: string }>('/publish', {
-              method: 'POST',
-              body: JSON.stringify(payload),
-            });
-            return { success: true, message: 'Extension published successfully.' };
-          } catch {
-            await this.request<{ success?: boolean; message?: string }>('/extensions', {
-              method: 'POST',
-              body: JSON.stringify(payload),
-            });
-            return { success: true, message: 'Extension published successfully.' };
-          }
-        }
-        throw err;
-      }
-    }
-
-    // Direct fallback
-    const res = await this.request<{ success?: boolean; message?: string }>('/publish', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    return { success: true, message: res?.message || 'Extension published successfully.' };
+  // `version` may be a literal SemVer string or the literal `latest`.
+  async getVersion(namespace: string, id: string, version: string): Promise<VersionInfo> {
+    return this.request<VersionInfo>(
+      `/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}`,
+    );
   }
 
   async deleteExtension(namespace: string, id: string): Promise<void> {
@@ -456,12 +417,7 @@ class ApiService {
     query.set('status', 'pending');
     if (params?.cursor) query.set('cursor', params.cursor);
     if (params?.limit) query.set('limit', String(params.limit));
-    const qs = query.toString();
-    try {
-      return await this.request<PaginatedList<PendingVersion>>(`/admin/pending?${qs}`);
-    } catch {
-      return await this.request<PaginatedList<PendingVersion>>(`/versions?${qs}`);
-    }
+    return this.request<PaginatedList<PendingVersion>>(`/versions?${query.toString()}`);
   }
 
   async reviewVersion(
@@ -470,65 +426,34 @@ class ApiService {
     version: string,
     payload: ReviewVersionPayload,
   ): Promise<VersionInfo> {
-    try {
-      return await this.request<VersionInfo>(
-        `/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}/review`,
-        {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        },
-      );
-    } catch {
-      return await this.request<VersionInfo>(
-        `/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify(payload),
-        },
-      );
-    }
+    return this.request<VersionInfo>(
+      `/@${encodeURIComponent(namespace)}/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      },
+    );
   }
 
   async updateUserRole(namespace: string, payload: { role?: UserRole }): Promise<User> {
-    try {
-      return await this.request<User>(`/admin/users/${encodeURIComponent(namespace)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      });
-    } catch {
-      return await this.request<User>(`/users/${encodeURIComponent(namespace)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      });
-    }
+    return this.request<User>(`/users/${encodeURIComponent(namespace)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
   }
 
   async updateTerms(body: string): Promise<TermsDoc> {
-    try {
-      return await this.request<TermsDoc>('/admin/terms', {
-        method: 'PATCH',
-        body: JSON.stringify({ body }),
-      });
-    } catch {
-      return await this.request<TermsDoc>('/terms', {
-        method: 'PUT',
-        body: JSON.stringify({ body }),
-      });
-    }
+    return this.request<TermsDoc>('/admin/terms', {
+      method: 'PATCH',
+      body: JSON.stringify({ body }),
+    });
   }
 
   async updatePrivacyPolicy(body: string): Promise<PrivacyDoc> {
-    try {
-      return await this.request<PrivacyDoc>('/admin/privacy', {
-        method: 'PATCH',
-        body: JSON.stringify({ body }),
-      });
-    } catch {
-      return await this.request<PrivacyDoc>('/privacy', {
-        method: 'PUT',
-        body: JSON.stringify({ body }),
-      });
-    }
+    return this.request<PrivacyDoc>('/admin/privacy', {
+      method: 'PATCH',
+      body: JSON.stringify({ body }),
+    });
   }
 }
 

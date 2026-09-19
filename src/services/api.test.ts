@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from './api';
+import { DEFAULT_API_BASE_URL } from '../config/settings';
 import { paginated, makeUser } from '../test/testUtils';
 
 const JSON_HEADERS = { 'content-type': 'application/json' };
@@ -14,24 +15,35 @@ function jsonResponse(
 
 describe('ApiService', () => {
   const fetchMock = vi.fn();
-  const baseUrl = `${window.location.origin}/api/v0`;
+  const baseUrl = DEFAULT_API_BASE_URL;
 
   beforeEach(() => {
     localStorage.clear();
     api.setToken(null);
     api.setStoredUser(null);
+    api.resetBaseUrl();
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
   });
 
-  it('derives the base URL from window.location.origin', () => {
-    expect(api.getBaseUrl()).toBe(`${window.location.origin}/api/v0`);
+  it('defaults to the official TwextHub API base URL', () => {
+    expect(api.getBaseUrl()).toBe(DEFAULT_API_BASE_URL);
   });
 
-  it('keeps setBaseUrl a no-op', () => {
-    const before = api.getBaseUrl();
-    api.setBaseUrl('https://evil.example/api/v0');
-    expect(api.getBaseUrl()).toBe(before);
+  it('uses the base URL configured via config.yml/env', () => {
+    api.configure({ apiBaseUrl: 'https://hub.example.com/api/v0' });
+    expect(api.getBaseUrl()).toBe('https://hub.example.com/api/v0');
+  });
+
+  it('falls back to the enforced default when the configured URL is invalid', () => {
+    api.setBaseUrl('not a url');
+    expect(api.getBaseUrl()).toBe(DEFAULT_API_BASE_URL);
+  });
+
+  it('resets to the enforced default', () => {
+    api.setBaseUrl('https://hub.example.com/api/v0');
+    api.resetBaseUrl();
+    expect(api.getBaseUrl()).toBe(DEFAULT_API_BASE_URL);
   });
 
   it('GETs a JSON endpoint and parses the payload', async () => {
@@ -49,16 +61,16 @@ describe('ApiService', () => {
     expect(fetchMock.mock.calls[0][0]).toBe(`${baseUrl}/extensions?cursor=abc&limit=6`);
   });
 
-  it('searchExtensions sends the q parameter', async () => {
+  it('searchExtensions sends the query parameter', async () => {
     fetchMock.mockResolvedValue(jsonResponse(paginated([])));
     await api.searchExtensions('gamepad', { limit: 12 });
-    expect(fetchMock.mock.calls[0][0]).toBe(`${baseUrl}/search?q=gamepad&limit=12`);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${baseUrl}/search?query=gamepad&limit=12`);
   });
 
   it('URL-encodes namespace and id path segments', async () => {
     fetchMock.mockResolvedValue(jsonResponse(makeUser()));
     await api.getExtension('a/b', 'c d');
-    expect(fetchMock.mock.calls[0][0]).toBe(`${baseUrl}/extensions/a%2Fb/c%20d`);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${baseUrl}/@a%2Fb/c%20d`);
   });
 
   it('attaches a Bearer authorization header when a token is present', async () => {
@@ -144,22 +156,77 @@ describe('ApiService', () => {
     expect(localStorage.getItem('twexthub_auth_user')).toBeNull();
   });
 
-  it('publish falls back to /publish when the scoped version endpoint 404s', async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse({ title: 'Not Found', status: 404, detail: 'missing' }, 404),
-      )
-      .mockResolvedValueOnce(jsonResponse({ success: true, message: 'Uploaded via fallback.' }));
-    const manifest = { namespace: 'kane', id: 'demo', name: 'Demo', version: '1.0.0' };
-    const result = await api.publish({ manifest, code: 'console.log(1);' });
-    expect(result).toEqual({ success: true, message: 'Extension published successfully.' });
-    expect(fetchMock.mock.calls[1][0]).toBe(`${baseUrl}/publish`);
-  });
-
   it('getMe refreshes the stored user profile', async () => {
     fetchMock.mockResolvedValue(jsonResponse(makeUser({ role: 'admin' })));
     const me = await api.getMe();
     expect(api.getStoredUser()).toEqual(makeUser({ role: 'admin' }));
     expect(me.role).toBe('admin');
+  });
+
+  it('getVersion fetches a single version by SemVer or latest', async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(jsonResponse({ version: '1.2.3', status: 'published' })),
+    );
+    await api.getVersion('kane', 'demo', '1.2.3');
+    expect(fetchMock.mock.calls[0][0]).toBe(`${baseUrl}/@kane/demo/versions/1.2.3`);
+
+    await api.getVersion('kane', 'demo', 'latest');
+    expect(fetchMock.mock.calls[1][0]).toBe(`${baseUrl}/@kane/demo/versions/latest`);
+  });
+
+  it('listVersionsForReview requests the pending moderation queue', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(paginated([])));
+    await api.listVersionsForReview({ cursor: 'abc' });
+    expect(fetchMock.mock.calls[0][0]).toBe(`${baseUrl}/versions?status=pending&cursor=abc`);
+  });
+
+  it('reviewVersion PATCHes the version review endpoint', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'approved' }));
+    await api.reviewVersion('kane', 'demo', '1.0.0', { status: 'approved' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${baseUrl}/@kane/demo/versions/1.0.0`,
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'approved' }),
+      }),
+    );
+  });
+
+  it('updateUserRole PATCHes the user endpoint', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(makeUser({ namespace: 'ada', role: 'admin' })));
+    await api.updateUserRole('ada', { role: 'admin' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${baseUrl}/users/ada`,
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ role: 'admin' }) }),
+    );
+  });
+
+  it('updateTerms and updatePrivacyPolicy PATCH the admin document endpoints', async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(jsonResponse({ version: 3, body: '# Doc' })),
+    );
+    await api.updateTerms('# Terms');
+    expect(fetchMock.mock.calls[0][0]).toBe(`${baseUrl}/admin/terms`);
+    expect(fetchMock.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ body: '# Terms' }) }),
+    );
+
+    await api.updatePrivacyPolicy('# Privacy');
+    expect(fetchMock.mock.calls[1][0]).toBe(`${baseUrl}/admin/privacy`);
+    expect(fetchMock.mock.calls[1][1]).toEqual(
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ body: '# Privacy' }) }),
+    );
+  });
+
+  it('createToken forwards the expiration window', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: 'tok-1', name: 'ci', scopes: ['publish'] }));
+    await api.createToken({ name: 'ci', scopes: ['publish'], expiresInDays: 30 });
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${baseUrl}/tokens`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ name: 'ci', scopes: ['publish'], expiresInDays: 30 }),
+      }),
+    );
   });
 });

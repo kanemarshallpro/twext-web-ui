@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { TermsBanner } from './components/TermsBanner';
+import { CommandPalette } from './components/CommandPalette';
 
 // Pages
 import { HomePage } from './pages/HomePage';
@@ -12,8 +14,9 @@ import { ExtensionDetailPage } from './pages/ExtensionDetailPage';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { DashboardPage } from './pages/DashboardPage';
-import { PublishPage } from './pages/PublishPage';
-import { SessionsTokensPage } from './pages/SessionsTokensPage';
+import { SettingsPage } from './pages/SettingsPage';
+import { AuthorPage } from './pages/AuthorPage';
+import { SavedPage } from './pages/SavedPage';
 import { TermsPage } from './pages/TermsPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { AdminPage } from './pages/AdminPage';
@@ -27,6 +30,7 @@ export const App: React.FC = () => {
 
   const [route, setRoute] = useState<string>(getHashRoute());
   const [configRefreshKey] = useState(0);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -36,6 +40,17 @@ export const App: React.FC = () => {
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const navigate = useCallback((targetRoute: string) => {
@@ -57,6 +72,20 @@ export const App: React.FC = () => {
           onNavigate={navigate}
         />
       );
+    }
+
+    // Author profile route e.g. "author/:namespace"
+    if (route.startsWith('author/')) {
+      const namespace = route.substring('author/'.length);
+      if (namespace) {
+        return (
+          <AuthorPage
+            key={`${namespace}-${configRefreshKey}`}
+            namespace={namespace}
+            onNavigate={navigate}
+          />
+        );
+      }
     }
 
     // Extension detail route e.g. "ext/:namespace/:id"
@@ -85,10 +114,11 @@ export const App: React.FC = () => {
         return <SignupPage onNavigate={navigate} />;
       case 'dashboard':
         return <DashboardPage key={configRefreshKey} onNavigate={navigate} />;
-      case 'publish':
-        return <PublishPage key={configRefreshKey} onNavigate={navigate} />;
+      case 'settings':
       case 'sessions-tokens':
-        return <SessionsTokensPage key={configRefreshKey} onNavigate={navigate} />;
+        return <SettingsPage key={configRefreshKey} onNavigate={navigate} />;
+      case 'saved':
+        return <SavedPage key={configRefreshKey} onNavigate={navigate} />;
       case 'admin':
         return <AdminPage key={configRefreshKey} onNavigate={navigate} />;
       case 'terms':
@@ -103,19 +133,31 @@ export const App: React.FC = () => {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <div className="min-h-screen flex flex-col bg-[#fcfcfd] dark:bg-[#0f0f13] text-zinc-900 dark:text-zinc-100 font-sans selection:bg-[#7b42bc] selection:text-white transition-colors duration-150">
-          {/* Navigation Bar */}
-          <Navbar currentRoute={route} onNavigate={navigate} />
+        <ToastProvider>
+          <div className="min-h-screen flex flex-col bg-canvas text-ink font-sans transition-colors duration-150">
+            {/* Navigation Bar */}
+            <Navbar
+              currentRoute={route}
+              onNavigate={navigate}
+              onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+            />
 
-          {/* Global Terms Acceptance Warning Banner */}
-          <TermsBanner onNavigate={navigate} />
+            {/* Global Terms Acceptance Warning Banner */}
+            <TermsBanner onNavigate={navigate} />
 
-          {/* Main Content Area */}
-          <main className="flex-1">{renderCurrentPage()}</main>
+            {/* Main Content Area */}
+            <main className="flex-1">{renderCurrentPage()}</main>
 
-          {/* Footer */}
-          <Footer onNavigate={navigate} />
-        </div>
+            {/* Footer */}
+            <Footer onNavigate={navigate} />
+
+            <CommandPalette
+              open={commandPaletteOpen}
+              onClose={() => setCommandPaletteOpen(false)}
+              onNavigate={navigate}
+            />
+          </div>
+        </ToastProvider>
       </AuthProvider>
     </ThemeProvider>
   );

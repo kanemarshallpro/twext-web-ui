@@ -2,6 +2,7 @@ import React from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { vi } from 'vitest';
 import { ThemeProvider } from '../context/ThemeContext';
+import { ToastProvider } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import type {
   AutomationToken,
@@ -83,6 +84,18 @@ export function paginated<T>(
 
 export function renderWithTheme(ui: React.ReactElement, options?: Omit<RenderOptions, 'wrapper'>) {
   return render(<ThemeProvider>{ui}</ThemeProvider>, options);
+}
+
+export function renderWithProviders(
+  ui: React.ReactElement,
+  options?: Omit<RenderOptions, 'wrapper'>,
+) {
+  return render(
+    <ThemeProvider>
+      <ToastProvider>{ui}</ToastProvider>
+    </ThemeProvider>,
+    options,
+  );
 }
 
 export interface AuthOverrides {

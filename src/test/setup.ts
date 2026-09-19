@@ -24,11 +24,6 @@ if (!('scrollIntoView' in window)) {
   Element.prototype.scrollIntoView = () => {};
 }
 
-Object.defineProperty(globalThis, 'confirm', {
-  configurable: true,
-  value: vi.fn(() => true),
-});
-
 if (!navigator.clipboard) {
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,

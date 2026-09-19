@@ -11,7 +11,7 @@ const SQUARE_LOGO_VARIANTS = [
 ];
 
 const SQUARE_VIEW_WIDTH = 289.5;
-const SVG_VIEW_HEIGHT = 225;
+const SVG_VIEW_HEIGHT = 289.5;
 
 interface BrandLogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';

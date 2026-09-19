@@ -41,15 +41,15 @@ export const PrivacyPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6">
       {/* Header */}
-      <div className="pb-4 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="pb-4 border-b border-line">
         <div className="flex items-center gap-2 mb-1">
-          <Shield className="w-5 h-5 text-[#7b42bc] dark:text-[#be98f7]" />
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Privacy Policy</h1>
+          <Shield className="w-5 h-5 text-lilac-500 dark:text-lilac-300" />
+          <h1 className="text-2xl font-display font-semibold text-ink">Privacy Policy</h1>
         </div>
-        <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+        <div className="flex items-center gap-3 text-xs text-ink-3">
           {privacy && (
             <>
-              <span className="font-mono bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 font-semibold text-zinc-700 dark:text-zinc-300">
+              <span className="chip bg-wash dark:bg-raised border-line text-ink-2 font-mono">
                 Version {privacy.version}
               </span>
               <span>•</span>
@@ -63,13 +63,13 @@ export const PrivacyPage: React.FC = () => {
       </div>
 
       {/* Main Document Content */}
-      <div className="bg-white dark:bg-[#181822] border border-zinc-200 dark:border-zinc-800 rounded-[6px] p-6 sm:p-8 min-h-[400px] transition-colors">
+      <div className="card p-6 sm:p-8 min-h-[400px]">
         {loading ? (
           <div className="space-y-4">
-            <div className="h-6 w-48 bg-zinc-100 dark:bg-zinc-800 rounded animate-pulse" />
-            <div className="h-4 w-full bg-zinc-100 dark:bg-zinc-800 rounded animate-pulse" />
-            <div className="h-4 w-3/4 bg-zinc-100 dark:bg-zinc-800 rounded animate-pulse" />
-            <div className="h-24 bg-zinc-100 dark:bg-zinc-800 rounded animate-pulse" />
+            <div className="h-6 w-48 bg-wash dark:bg-raised rounded animate-pulse" />
+            <div className="h-4 w-full bg-wash dark:bg-raised rounded animate-pulse" />
+            <div className="h-4 w-3/4 bg-wash dark:bg-raised rounded animate-pulse" />
+            <div className="h-24 bg-wash dark:bg-raised rounded animate-pulse" />
           </div>
         ) : error ? (
           <div className="text-center py-12 text-xs text-rose-600 dark:text-rose-400 space-y-2">

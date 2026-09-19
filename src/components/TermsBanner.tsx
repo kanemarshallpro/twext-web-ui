@@ -29,8 +29,8 @@ export const TermsBanner: React.FC<TermsBannerProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200 px-4 py-2.5">
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+    <div className="bg-amber-50 dark:bg-amber-900/60 border-b border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 px-4 py-2.5">
+      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
         <div className="flex items-center gap-2">
           <ShieldAlert className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
           <span>
@@ -50,7 +50,7 @@ export const TermsBanner: React.FC<TermsBannerProps> = ({ onNavigate }) => {
           <button
             onClick={handleAccept}
             disabled={accepting}
-            className="px-3 py-1 bg-amber-700 hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500 text-white font-medium rounded-[4px] flex items-center gap-1 disabled:opacity-50"
+            className="btn btn-sm bg-amber-700 hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500 text-white flex items-center gap-1 disabled:opacity-50"
           >
             <Check className="w-3 h-3" />
             {accepting ? 'Accepting...' : 'Accept Current Terms'}
@@ -58,7 +58,7 @@ export const TermsBanner: React.FC<TermsBannerProps> = ({ onNavigate }) => {
         </div>
       </div>
       {error && (
-        <div className="max-w-7xl mx-auto mt-1 text-[11px] text-rose-700 dark:text-rose-400 font-medium">
+        <div className="max-w-7xl mx-auto mt-1 text-xs text-rose-700 dark:text-rose-400 font-medium">
           {error}
         </div>
       )}

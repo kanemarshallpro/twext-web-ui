@@ -36,7 +36,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['vite.config.ts', 'vitest.config.ts', 'eslint.config.js'],
+    files: ['vite.config.ts', 'vitest.config.ts', 'eslint.config.js', 'server.js'],
     languageOptions: { globals: globals.nodeBuiltin },
     rules: {
       'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],

@@ -60,7 +60,6 @@ export interface Extension {
   name: string;
   description?: string;
   shortDescription?: string;
-  readme?: string;
   author:
     | string
     | {
@@ -103,11 +102,6 @@ export interface PaginatedList<T> {
   pagination: Pagination;
 }
 
-export interface PublishPayload {
-  manifest: Record<string, unknown>;
-  code: string;
-}
-
 export interface VersionInfo {
   namespace: string;
   id: string;
@@ -143,5 +137,6 @@ export interface ReviewVersionPayload {
 export interface UpdateUserPayload {
   displayName?: string;
   password?: string;
+  currentPassword?: string;
   role?: UserRole;
 }

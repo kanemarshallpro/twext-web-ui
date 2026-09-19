@@ -4,30 +4,34 @@ import userEvent from '@testing-library/user-event';
 import { DashboardPage } from './DashboardPage';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { makeAuthState, makeExtension, makeUser, paginated, noop } from '../test/testUtils';
+import { makeAuthState, makeExtension, paginated, noop } from '../test/testUtils';
 
 vi.mock('../services/api');
 vi.mock('../context/AuthContext');
 
 const apiMock = vi.mocked(api);
 const useAuthMock = vi.mocked(useAuth);
-let authState: ReturnType<typeof makeAuthState>;
 
 beforeEach(() => {
   apiMock.searchExtensions.mockResolvedValue(paginated([makeExtension()]));
-  apiMock.updateUser.mockResolvedValue(makeUser());
-  authState = makeAuthState();
   useAuthMock.mockReset();
-  useAuthMock.mockReturnValue(authState);
+  useAuthMock.mockReturnValue(makeAuthState());
 });
 
 describe('DashboardPage', () => {
-  it('renders the authenticated profile header and shortcuts', async () => {
+  it('renders the profile header and a settings action', async () => {
     render(<DashboardPage onNavigate={noop} />);
     expect(await screen.findByText('Your Extensions')).toBeInTheDocument();
-    expect(screen.getByText('Automation Tokens & Sessions')).toBeInTheDocument();
-    expect(screen.getAllByText('Publish Extension').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Terms Accepted/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
+  });
+
+  it('navigates to settings from the header action', async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    render(<DashboardPage onNavigate={onNavigate} />);
+    await screen.findByText('Your Extensions');
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(onNavigate).toHaveBeenCalledWith('settings');
   });
 
   it('lists extensions owned by the current user', async () => {
@@ -40,20 +44,6 @@ describe('DashboardPage', () => {
     apiMock.searchExtensions.mockResolvedValue(paginated([]));
     render(<DashboardPage onNavigate={noop} />);
     expect(await screen.findByText('No extensions under @kane yet')).toBeInTheDocument();
-  });
-
-  it('saves profile changes', async () => {
-    const user = userEvent.setup();
-    render(<DashboardPage onNavigate={noop} />);
-    await screen.findByText('Your Extensions');
-    await user.click(screen.getByRole('button', { name: 'Edit Profile' }));
-    const displayName = screen.getByPlaceholderText('e.g. Kane Marshall');
-    await user.clear(displayName);
-    await user.type(displayName, 'Kane Marshall');
-    await user.click(screen.getByRole('button', { name: 'Save Profile Changes' }));
-    expect(apiMock.updateUser).toHaveBeenCalledWith('kane', { displayName: 'Kane Marshall' });
-    expect(authState.refreshUser).toHaveBeenCalled();
-    expect(await screen.findByText('Account profile updated successfully.')).toBeInTheDocument();
   });
 
   it('redirects a signed-out visitor to login', async () => {
